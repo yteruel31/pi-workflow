@@ -1,0 +1,26 @@
+{
+  "name": "pi-workflow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A small personal development workflow for Pi.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yteruel31/pi-workflow.git"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-skill",
+    "pi-coding-agent",
+    "developer-workflow"
+  ],
+  "license": "MIT",
+  "pi": {
+    "skills": [
+      "./skills"
+    ]
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

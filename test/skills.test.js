@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const skillNames = ["yt-brainstorm", "yt-plan"];
+const requiredSkillNames = ["yt-brainstorm", "yt-plan", "yt-review", "yt-work"];
+const productSkillNames = ["yt-brainstorm", "yt-plan"];
 
 function readSkill(name) {
   const path = join(root, "skills", name, "SKILL.md");
@@ -31,8 +32,90 @@ function assertMatches(content, patterns, label) {
   }
 }
 
-test("U2 skills have valid, matching frontmatter", () => {
-  for (const name of skillNames) {
+function findNamedFiles(directory, fileName) {
+  const matches = [];
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) matches.push(...findNamedFiles(path, fileName));
+    if (entry.isFile() && entry.name === fileName) matches.push(path);
+  }
+  return matches;
+}
+
+test("package manifest exposes only the native skills directory", () => {
+  const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+
+  assert.equal(manifest.private, true);
+  assert.deepEqual(manifest.pi, { skills: ["./skills"] });
+  assert.equal(manifest.dependencies, undefined);
+});
+
+test("skill discovery contains exactly the required four matching directories and files", () => {
+  const skillsDirectory = join(root, "skills");
+  const immediateDirectories = readdirSync(skillsDirectory, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+  const skillFiles = findNamedFiles(root, "SKILL.md").sort();
+  const expectedFiles = requiredSkillNames
+    .map((name) => join(skillsDirectory, name, "SKILL.md"))
+    .sort();
+
+  assert.deepEqual(immediateDirectories, requiredSkillNames);
+  assert.deepEqual(skillFiles, expectedFiles);
+
+  for (const name of requiredSkillNames) {
+    const { content } = readSkill(name);
+    assert.equal(frontmatter(content).values.get("name"), name);
+  }
+});
+
+test("repository ships no custom-agent, cross-harness, or marketplace surfaces", () => {
+  const forbiddenRootEntries = [
+    "agents",
+    "commands",
+    "extensions",
+    "prompts",
+    "themes",
+    "chains",
+    "plugins",
+    ".claude-plugin",
+    "marketplace.json",
+    ".pi-marketplace.json",
+  ];
+
+  for (const entry of forbiddenRootEntries) {
+    assert.equal(existsSync(join(root, entry)), false, `${entry} must not be shipped`);
+  }
+});
+
+test("README documents installation, all commands, fallback, commits, and report-only review", () => {
+  const readme = readFileSync(join(root, "README.md"), "utf8");
+
+  assertMatches(readme, [
+    /pi install git:github\.com\/yteruel31\/pi-workflow/,
+    /Restart Pi/i,
+    /pi update --extensions/,
+    /@v0\.1\.0/,
+    /@<commit>/,
+    /\/skill:yt-brainstorm/,
+    /\/skill:yt-plan/,
+    /\/skill:yt-work/,
+    /\/skill:yt-review/,
+    /pi install npm:pi-subagents/,
+    /optional enrichment.*not installed transitively/is,
+    /graceful inline fallback/i,
+    /one fresh `worker` per implementation unit, strictly sequentially/i,
+    /one atomic commit for each passing unit/i,
+    /does not push or open a pull request automatically/i,
+    /`yt-review` is report-only/i,
+    /never applies an autofix/i,
+    /no runtime dependencies/i,
+  ], "README");
+});
+
+test("all discovered skills have valid, matching frontmatter", () => {
+  for (const name of requiredSkillNames) {
     const { content } = readSkill(name);
     const { raw, values } = frontmatter(content);
 
@@ -42,8 +125,8 @@ test("U2 skills have valid, matching frontmatter", () => {
   }
 });
 
-test("both skills preserve direct entry and source authority", () => {
-  for (const name of skillNames) {
+test("brainstorm and plan preserve direct entry and source authority", () => {
+  for (const name of productSkillNames) {
     const { content } = readSkill(name);
     assertMatches(content, [
       /A direct request is sufficient\./,
@@ -57,8 +140,8 @@ test("both skills preserve direct entry and source authority", () => {
   }
 });
 
-test("both skills keep artifacts optional and ask one question at a time", () => {
-  for (const name of skillNames) {
+test("brainstorm and plan keep artifacts optional and ask one question at a time", () => {
+  for (const name of productSkillNames) {
     const { content } = readSkill(name);
     assertMatches(content, [
       /Ask exactly one question at a time\./,
@@ -69,8 +152,8 @@ test("both skills keep artifacts optional and ask one question at a time", () =>
   }
 });
 
-test("delegation is fresh, bounded, foreground, and artifact-free", () => {
-  for (const name of skillNames) {
+test("brainstorm and plan delegation is fresh, bounded, foreground, and artifact-free", () => {
+  for (const name of productSkillNames) {
     const { content } = readSkill(name);
     assertMatches(content, [
       /inspect the available roles/i,

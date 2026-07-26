@@ -1,48 +1,85 @@
 # Pi Workflow
 
-A small personal development workflow for [Pi](https://pi.dev), focused on moving from an idea to reviewed commits without heavy process or automatic review/fix loops.
+A small, Pi-only development workflow for moving from an idea to reviewed commits without mandatory documents, heavy orchestration, or automatic review/fix loops.
 
-> The repository is currently being bootstrapped. The package manifest is available; the workflow skills will be added in the next implementation units.
+## Install
 
-## Planned skills
-
-| Skill | Purpose |
-|---|---|
-| `yt-brainstorm` | Clarify product intent and optionally capture a concise PRD. |
-| `yt-plan` | Produce an implementation-ready plan from a request or optional artifact. |
-| `yt-work` | Implement sequential units with native workers and parent-validated commits. |
-| `yt-review` | Produce an adaptive, report-only implementation review. |
-
-Each skill will remain directly usable without running the previous stage.
-
-## Installation
-
-Once the repository is published, install it globally from GitHub:
+Install the public Git package:
 
 ```bash
 pi install git:github.com/yteruel31/pi-workflow
 ```
 
-Restart Pi after installation.
-
-Update installed Git packages with:
+Restart Pi so it discovers the skills. Update installed Git packages with:
 
 ```bash
 pi update --extensions
 ```
 
-To pin the package, append a tag or commit, for example:
+For reproducible installs, append a tag or commit to the source, for example:
 
 ```bash
 pi install git:github.com/yteruel31/pi-workflow@v0.1.0
+pi install git:github.com/yteruel31/pi-workflow@<commit>
 ```
+
+## Skills
+
+Use a skill naturally (for example, “brainstorm this feature with yt-brainstorm”) or invoke its Pi command directly:
+
+| Skill | Pi command | Natural-language use |
+|---|---|---|
+| `yt-brainstorm` | `/skill:yt-brainstorm` | Clarify a product idea, compare meaningful options, and optionally capture a concise PRD. |
+| `yt-plan` | `/skill:yt-plan` | Turn a direct request, optional PRD, or existing plan into ordered implementation units. |
+| `yt-work` | `/skill:yt-work` | Implement a request or plan as sequential, validated, committed units. |
+| `yt-review` | `/skill:yt-review` | Review a patch, PR, branch, ref, or working tree and return one prioritized report. |
+
+Every skill is independently usable from a direct request. PRDs and plans are optional context, not workflow gates. Brainstorm and plan keep their result in the current session by default and create or update an artifact only after explicit approval. Each skill may suggest the next command, but never starts it automatically.
+
+## Bounded delegation
+
+When Pi's native subagent roles are available, the skills use a deliberately small delegation model:
+
+- **Brainstorm and plan:** optionally use at most one local `scout` and one external `researcher` when their evidence would materially improve the result.
+- **Work:** use exactly one fresh `worker` per implementation unit, strictly sequentially. The parent validates the diff and checks, then creates one atomic commit for each passing unit before starting the next.
+- **Review:** select one to three fresh `reviewer` roles from semantic complexity and synthesize one report-only result.
+
+[`pi-subagents`](https://www.npmjs.com/package/pi-subagents) is optional enrichment and is not installed transitively. To enable role delegation:
+
+```bash
+pi install npm:pi-subagents
+```
+
+Without the extension or a required role, each skill has a graceful inline fallback in the parent session and reports reduced delegation or review confidence where relevant.
+
+## Safety behavior
+
+`yt-work` requires a Git repository and performs a Git preflight before editing. It records existing changes, refuses to proceed with pre-existing staged changes, and blocks ambiguous overlap with foreign work. Workers never stage or commit: the parent stages only unit-owned changes, validates them, and owns the atomic commit. The skill does not push or open a pull request automatically.
+
+`yt-review` is report-only. It snapshots local and remote-related repository state before and after reviewers, prohibits local or remote mutation, never applies an autofix, and stops with a contract-violation report if a reviewer changes state.
 
 ## Development
 
-The package uses Pi's native `pi.skills` manifest and has no runtime dependencies.
+Node.js is needed only to run the dependency-free contract tests; the installed Pi package has no runtime dependencies.
 
 ```bash
 npm test
+npm pack --dry-run
 ```
 
-Dependency-free contract tests will be added alongside the skill files.
+Repository layout:
+
+```text
+skills/
+  yt-brainstorm/SKILL.md
+  yt-plan/SKILL.md
+  yt-work/SKILL.md
+  yt-review/SKILL.md
+test/skills.test.js
+docs/plans/
+package.json
+```
+
+The package is exposed through `pi.skills: ["./skills"]`. It intentionally ships no custom agents, commands, extensions, converters, or cross-harness compatibility layer.
+
+Licensed under the [MIT License](LICENSE).

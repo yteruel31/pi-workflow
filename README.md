@@ -16,7 +16,7 @@ Restart Pi so it discovers the skills. Update installed Git packages with:
 pi update --extensions
 ```
 
-For reproducible installs, append a tag or commit to the source, for example:
+For reproducible installs, append an existing tag or commit to the source (a tag must already be published), for example:
 
 ```bash
 pi install git:github.com/yteruel31/pi-workflow@v0.1.0
@@ -56,7 +56,7 @@ Without the extension or a required role, each skill has a graceful inline fallb
 
 `yt-work` requires a Git repository and performs a Git preflight before editing. It records existing changes, refuses to proceed with pre-existing staged changes, and blocks ambiguous overlap with foreign work. Workers never stage or commit: the parent stages only unit-owned changes, validates them, and owns the atomic commit. The skill does not push or open a pull request automatically.
 
-`yt-review` is report-only. It snapshots local and remote-related repository state before and after reviewers, prohibits local or remote mutation, never applies an autofix, and stops with a contract-violation report if a reviewer changes state.
+`yt-review` is report-only. It compares observable local repository state before and after reviewers and, when safe read APIs are available, re-queries live remote refs and target-specific PR metadata on a best-effort basis. It prohibits local or remote mutation, never applies an autofix, and stops with a contract-violation report when compared evidence changes. Remote-only mutation that available tools cannot observe and configured role overrides remain trust boundaries; the report marks remote state unverified instead of claiming enforcement when evidence is unavailable.
 
 ## Development
 
@@ -77,6 +77,7 @@ skills/
   yt-review/SKILL.md
 test/skills.test.js
 docs/plans/
+docs/validation/
 package.json
 ```
 

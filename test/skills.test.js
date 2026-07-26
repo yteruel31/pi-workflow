@@ -32,6 +32,23 @@ function assertMatches(content, patterns, label) {
   }
 }
 
+function assertNoForbiddenPatterns(content, patterns, label) {
+  for (const pattern of patterns) {
+    assert.doesNotMatch(content, pattern, `${label} must reject ${pattern}`);
+  }
+}
+
+function assertRejectsContradictions(content, patterns, syntheticDirectives, label) {
+  assertNoForbiddenPatterns(content, patterns, label);
+  for (const directive of syntheticDirectives) {
+    assert.throws(
+      () => assertNoForbiddenPatterns(`${content}\n${directive}\n`, patterns, label),
+      { name: "AssertionError" },
+      `${label} must reject contradictory directive: ${directive}`,
+    );
+  }
+}
+
 function findNamedFiles(directory, fileName) {
   const matches = [];
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -56,7 +73,7 @@ test("skill discovery contains exactly the required four matching directories an
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort();
-  const skillFiles = findNamedFiles(root, "SKILL.md").sort();
+  const skillFiles = findNamedFiles(skillsDirectory, "SKILL.md").sort();
   const expectedFiles = requiredSkillNames
     .map((name) => join(skillsDirectory, name, "SKILL.md"))
     .sort();
@@ -96,6 +113,8 @@ test("README documents installation, all commands, fallback, commits, and report
     /pi install git:github\.com\/yteruel31\/pi-workflow/,
     /Restart Pi/i,
     /pi update --extensions/,
+    /existing tag or commit/i,
+    /tag must already be published/i,
     /@v0\.1\.0/,
     /@<commit>/,
     /\/skill:yt-brainstorm/,
@@ -109,6 +128,10 @@ test("README documents installation, all commands, fallback, commits, and report
     /one atomic commit for each passing unit/i,
     /does not push or open a pull request automatically/i,
     /`yt-review` is report-only/i,
+    /observable local repository state/i,
+    /best-effort basis/i,
+    /remote-only mutation.*configured role overrides.*trust boundaries/is,
+    /marks remote state unverified/i,
     /never applies an autofix/i,
     /no runtime dependencies/i,
   ], "README");
@@ -121,8 +144,49 @@ test("all discovered skills have valid, matching frontmatter", () => {
 
     assert.equal(values.get("name"), name);
     assert.match(raw, /^description:\s*"[^"\n]+"$/m);
-    assert.match(raw, /^argument-hint:\s*"[^"\n]+"$/m);
+    assert.equal(values.has("argument-hint"), false);
   }
+});
+
+test("skills reject contradictory workflow directives", () => {
+  const productPatterns = [
+    /\b(?:an? )?(?:PRD|plan) is required before\b/i,
+    /\balways (?:invoke|start|run) (?:the )?next skill automatically\b/i,
+  ];
+  for (const name of productSkillNames) {
+    const { content } = readSkill(name);
+    assertRejectsContradictions(content, productPatterns, [
+      "A PRD is required before continuing.",
+      "A plan is required before continuing.",
+      "Always invoke the next skill automatically.",
+    ], name);
+  }
+
+  const { content: work } = readSkill("yt-work");
+  assertRejectsContradictions(work, [
+    /\b(?:the )?worker(?:s)? (?:may|can|should|must) (?:stage|commit|push)\b/i,
+    /\brun workers? in parallel\b/i,
+    /\bautomatically (?:retry|replace)\b/i,
+  ], [
+    "The worker may stage changes.",
+    "The worker may commit changes.",
+    "The worker may push changes.",
+    "Run workers in parallel.",
+    "Automatically retry failed workers.",
+    "Automatically replace failed workers.",
+  ], "yt-work");
+
+  const { content: review } = readSkill("yt-review");
+  assertRejectsContradictions(review, [
+    /\breviewers? (?:may|can|should|must) (?:edit|write|mutate|stage|commit|push|comment)\b/i,
+    /\b(?:parent|reviewers?) (?:may|can|should|must) (?:apply|run|perform) (?:an? )?autofix\b/i,
+    /\balways report remote state (?:matched|was unchanged|is unchanged).*evidence is unavailable\b/i,
+  ], [
+    "Reviewers may edit files.",
+    "Reviewers may mutate remote state.",
+    "The parent may apply an autofix.",
+    "Always report remote state was unchanged when evidence is unavailable.",
+  ], "yt-review");
 });
 
 test("brainstorm and plan preserve direct entry and source authority", () => {
@@ -209,7 +273,7 @@ test("yt-work has valid matching frontmatter and supports direct entry", () => {
 
   assert.equal(values.get("name"), "yt-work");
   assert.match(raw, /^description:\s*"[^"\n]+"$/m);
-  assert.match(raw, /^argument-hint:\s*"[^"\n]+"$/m);
+  assert.equal(values.has("argument-hint"), false);
   assertMatches(content, [
     /A direct implementation request is sufficient/i,
     /missing PRD, plan, or previous workflow stage never blocks/i,
@@ -240,7 +304,9 @@ test("yt-work uses exactly one sequential artifact-free worker per unit", () => 
     /Inspect the available roles before delegation/i,
     /exactly one fresh native `worker`, strictly sequentially/i,
     /next worker may start only after the parent has validated and committed/i,
-    /foreground execution with inline returns/i,
+    /per-unit Git metadata snapshot/i,
+    /Use a fresh context and foreground execution with inline returns/i,
+    /`context: "fresh"`/,
     /`async: false`/,
     /`output: false`/,
     /`artifacts: false`/,
@@ -255,6 +321,9 @@ test("yt-work uses exactly one sequential artifact-free worker per unit", () => 
 test("yt-work leaves validation and atomic commits to the parent", () => {
   const { content } = readSkill("yt-work");
   assertMatches(content, [
+    /first compare `HEAD`, branch, the complete staged\/index state, local refs, and redacted remote configuration exactly with the per-unit snapshot/i,
+    /metadata delta as a worker contract violation and stop without rewriting history, retrying, replacing the worker, or committing/i,
+    /remote-only effect.*trust boundary/is,
     /inspect actual status and diff against the unit packet and preflight baseline/i,
     /confirm no pre-existing change was absorbed/i,
     /run the decisive focused checks/i,
@@ -288,7 +357,7 @@ test("yt-review has valid matching frontmatter and accepts direct targets", () =
 
   assert.equal(values.get("name"), "yt-review");
   assert.match(raw, /^description:\s*"[^"\n]+"$/m);
-  assert.match(raw, /^argument-hint:\s*"[^"\n]+"$/m);
+  assert.equal(values.has("argument-hint"), false);
   assertMatches(content, [
     /A direct review target is sufficient/i,
     /explicit patch or diff, PR URL or number, branch or ref, a plan or PRD plus a target, or the current working tree/i,
@@ -347,15 +416,19 @@ test("yt-review uses one bounded fresh foreground review-only call", () => {
   ], "yt-review");
 });
 
-test("yt-review snapshots state and stops on report-only violations", () => {
+test("yt-review snapshots observable state and stops on report-only violations", () => {
   const { content } = readSkill("yt-review");
   assertMatches(content, [
     /`HEAD`, current branch, local refs, remote-tracking refs, and redacted remote configuration or URLs/i,
     /complete staged diff and unstaged diff/i,
     /relevant untracked paths and a content hash or equivalent content state/i,
-    /capture the same local and remote metadata, status, diffs, and relevant untracked-file state/i,
-    /Compare the before and after snapshots/i,
-    /changed local or remote state.*stop and report a review-contract violation/is,
+    /safe read-only APIs.*live server-side ref tips and target-specific PR metadata, comments, and labels/is,
+    /Configured role overrides and remote-only actions.*trust boundary/is,
+    /recapture and compare the same observable local state/i,
+    /re-query live server-side ref tips and target-specific PR metadata, comments, and labels/i,
+    /observable local or remote evidence changed.*stop and report a review-contract violation/is,
+    /remote evidence was unavailable or incomplete.*confirm only.*observable local state.*remote mutation as unverified/is,
+    /Never claim that remote mutation was detected or proven absent without matching before-and-after remote evidence/i,
     /Do not revert, fix, stage, commit, push, or launch another agent automatically/i,
     /Never change implementation, Git state, or remote systems/i,
   ], "yt-review");

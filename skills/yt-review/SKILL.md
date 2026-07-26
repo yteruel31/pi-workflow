@@ -1,7 +1,6 @@
 ---
 name: yt-review
 description: "Review a patch, branch, PR, or working tree with one to three native reviewers and return one report without changing state."
-argument-hint: "[patch, PR, branch/ref, working tree, or intent artifact plus target]"
 ---
 
 # YT Review
@@ -35,14 +34,16 @@ Record the resolved target, comparison base, included and excluded coverage, int
 
 ## Snapshot report-only state
 
-Before delegation, snapshot enough state to detect mutation:
+Before delegation, snapshot enough observable local state to detect local mutation:
 
 - `HEAD`, current branch, local refs, remote-tracking refs, and redacted remote configuration or URLs;
 - porcelain status and staged paths;
 - the complete staged diff and unstaged diff;
 - relevant untracked paths and a content hash or equivalent content state.
 
-Keep this snapshot in the session. Do not create a repository artifact for it.
+When safe read-only APIs are available, also query live server-side ref tips and target-specific PR metadata, comments, and labels before delegation. Redact credentials, tokens, authenticated URLs, and sensitive response fields. Record which remote evidence was captured and which was unavailable.
+
+Keep these snapshots in the session. Do not create a repository artifact for them. Configured role overrides and remote-only actions that the available read APIs cannot observe are a trust boundary, not an enforceable guarantee.
 
 ## Choose one to three reviewers
 
@@ -69,9 +70,11 @@ If the subagent tool or `reviewer` role is unavailable, perform one review in th
 
 ## Verify no mutation
 
-After reviewer returns, capture the same local and remote metadata, status, diffs, and relevant untracked-file state. Compare the before and after snapshots before synthesizing normally.
+After reviewers return, recapture and compare the same observable local state before synthesizing normally. When the same safe read-only remote queries remain available, re-query live server-side ref tips and target-specific PR metadata, comments, and labels, then compare only the evidence actually captured before and after.
 
-If any reviewer changed local or remote state, stop and report a review-contract violation with the observed delta. Do not revert, fix, stage, commit, push, or launch another agent automatically. The user decides recovery.
+If any observable local or remote evidence changed, stop and report a review-contract violation with the observed delta. Do not revert, fix, stage, commit, push, or launch another agent automatically. The user decides recovery.
+
+If remote evidence was unavailable or incomplete, confirm only whether observable local state matched and explicitly mark remote mutation as unverified. Never claim that remote mutation was detected or proven absent without matching before-and-after remote evidence.
 
 ## Synthesize one report
 
@@ -91,6 +94,6 @@ Return these sections:
 5. **Findings** — deduplicated P0-P3 items with file/area evidence, impact, and a suggested fix; explicitly say when none are found.
 6. **Verification gaps** — checks not run or evidence unavailable.
 7. **Assumptions and residual risks.**
-8. **Report-only confirmation** — whether pre/post state matched or a violation occurred.
+8. **Report-only confirmation** — whether observable local state matched or a violation occurred, which remote evidence was re-queried, and any remote mutation that remains unverified.
 
 Never apply a suggested fix inside this skill. When actionable findings exist, suggest passing this report to `/skill:yt-work`; never invoke that skill or start fixes automatically.

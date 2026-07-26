@@ -1,7 +1,6 @@
 ---
 name: yt-work
 description: "Implement a request or plan as sequential units with one native worker and one parent-owned atomic commit per passing unit."
-argument-hint: "[implementation request, PRD path, or plan path]"
 ---
 
 # YT Work
@@ -44,7 +43,9 @@ Do not require a plan artifact. Keep the map in the session unless the user expl
 
 Inspect the available roles before delegation. For the current unit, run exactly one fresh native `worker`, strictly sequentially. The next worker may start only after the parent has validated and committed the previous unit.
 
-Use foreground execution with inline returns: set `async: false`, `output: false`, and `artifacts: false`. Send a bounded unit packet rather than the whole plan. Include:
+Immediately before launching each worker, capture a per-unit Git metadata snapshot: expected `HEAD`, current branch, the complete staged/index state, all local refs, and redacted remote configuration or URLs. Never retain credentials in the snapshot.
+
+Use a fresh context and foreground execution with inline returns: set `context: "fresh"`, `async: false`, `output: false`, and `artifacts: false`. Send a bounded unit packet rather than the whole plan. Include:
 
 - the unit ID, goal, requirements, dependencies, and allowed paths;
 - the relevant repository instructions and implementation context;
@@ -61,13 +62,17 @@ If the `worker` role or subagent tool is unavailable, the parent may implement t
 
 After the worker returns, the parent owns validation:
 
-1. inspect actual status and diff against the unit packet and preflight baseline;
-2. reject unrelated, unexplained, or out-of-scope edits;
-3. confirm no pre-existing change was absorbed and no foreign change was modified;
-4. run the decisive focused checks and inspect their output;
-5. verify that every changed hunk has unambiguous unit ownership.
+1. first compare `HEAD`, branch, the complete staged/index state, local refs, and redacted remote configuration exactly with the per-unit snapshot;
+2. treat any metadata delta as a worker contract violation and stop without rewriting history, retrying, replacing the worker, or committing;
+3. inspect actual status and diff against the unit packet and preflight baseline;
+4. reject unrelated, unexplained, or out-of-scope edits;
+5. confirm no pre-existing change was absorbed and no foreign change was modified;
+6. run the decisive focused checks and inspect their output;
+7. verify that every changed hunk has unambiguous unit ownership.
 
-A failed or partial worker, ambiguous diff, foreign-change overlap, or failed validation remains uncommitted and stops the workflow at a checkpoint. Launch no automatic retry or replacement. Report the unit, changed files, checks and results, failure, and next user-controlled action.
+These local checks cannot prove that a configured worker caused no remote-only effect. Configured role overrides and remote-only actions are a trust boundary; disclose that limitation rather than claiming remote absence.
+
+A failed or partial worker, ambiguous diff, foreign-change overlap, metadata contract violation, or failed validation remains uncommitted and stops the workflow at a checkpoint. Launch no automatic retry or replacement. Report the unit, changed files, checks and results, failure, and next user-controlled action.
 
 ## Parent-owned atomic commit
 

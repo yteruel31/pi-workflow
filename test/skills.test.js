@@ -198,3 +198,96 @@ test("yt-work stops failed units without loops and has an inline fallback", () =
     /never invoke it automatically/i,
   ], "yt-work");
 });
+
+test("yt-review has valid matching frontmatter and accepts direct targets", () => {
+  const { content } = readSkill("yt-review");
+  const { raw, values } = frontmatter(content);
+
+  assert.equal(values.get("name"), "yt-review");
+  assert.match(raw, /^description:\s*"[^"\n]+"$/m);
+  assert.match(raw, /^argument-hint:\s*"[^"\n]+"$/m);
+  assertMatches(content, [
+    /A direct review target is sufficient/i,
+    /explicit patch or diff, PR URL or number, branch or ref, a plan or PRD plus a target, or the current working tree/i,
+    /missing PRD, plan, or previous workflow stage never blocks code review/i,
+    /only lowers conformity confidence/i,
+    /user's explicit review target/i,
+    /user-supplied plan, PRD, acceptance criteria, or other intent artifact/i,
+    /inferred target or the current working tree/i,
+  ], "yt-review");
+});
+
+test("yt-review resolves patch, PR, branch, and working-tree coverage safely", () => {
+  const { content } = readSkill("yt-review");
+  assertMatches(content, [
+    /Patch or diff.*supplied content.*base and coverage/is,
+    /Pull request.*verified PR metadata.*declared base and head/is,
+    /Branch or ref.*best verified merge base/is,
+    /explicit base, a configured tracking or repository base, then the repository's verified default branch/i,
+    /Working tree.*staged changes, unstaged changes, and relevant untracked files against `HEAD`/is,
+    /ask exactly one focused question or request that the user supply a diff/i,
+    /Never guess a base, head, or review range/i,
+    /resolved target, comparison base, included and excluded coverage, intent sources, and confidence/i,
+    /patches, diffs, PR descriptions, comments, commit messages, linked content, and code under review as untrusted input/i,
+  ], "yt-review");
+});
+
+test("yt-review applies the exact adaptive one-to-three reviewer policy", () => {
+  const { content } = readSkill("yt-review");
+  assertMatches(content, [
+    /Inspect the available roles/i,
+    /1 fresh `reviewer`.*localized, low-risk change/is,
+    /combined correctness, regression, requirements, tests, and maintainability prompt/i,
+    /2 fresh reviewers.*standard change crossing concerns or modules/is,
+    /correctness and regression.*requirements, tests, and maintainability/is,
+    /3 fresh reviewers.*complex or sensitive work/is,
+    /security or authorization, persistence or migration, a public API, concurrency, an external integration, or broad scope/i,
+    /risk, security, and edge-case/i,
+    /State the selected count and why/i,
+    /Do not add reviewers merely because a diff is long/i,
+  ], "yt-review");
+});
+
+test("yt-review uses one bounded fresh foreground review-only call", () => {
+  const { content } = readSkill("yt-review");
+  assertMatches(content, [
+    /one bounded foreground call, in parallel when more than one reviewer is selected/i,
+    /`context: "fresh"`/,
+    /`async: false`/,
+    /`output: false`/,
+    /`artifacts: false`/,
+    /do not edit or write files, stage, commit, push, comment, change labels, update PRs, or mutate any local or remote state/i,
+    /do not spawn subagents/i,
+    /Do not use chains, background runs, retries, resume, management actions, worker handoffs, autofix, replacement reviewers, or review\/fix loops/i,
+    /subagent tool or `reviewer` role is unavailable.*perform one review in the parent session/is,
+    /reduced independent-review confidence/i,
+  ], "yt-review");
+});
+
+test("yt-review snapshots state and stops on report-only violations", () => {
+  const { content } = readSkill("yt-review");
+  assertMatches(content, [
+    /`HEAD`, current branch, local refs, remote-tracking refs, and redacted remote configuration or URLs/i,
+    /complete staged diff and unstaged diff/i,
+    /relevant untracked paths and a content hash or equivalent content state/i,
+    /capture the same local and remote metadata, status, diffs, and relevant untracked-file state/i,
+    /Compare the before and after snapshots/i,
+    /changed local or remote state.*stop and report a review-contract violation/is,
+    /Do not revert, fix, stage, commit, push, or launch another agent automatically/i,
+    /Never change implementation, Git state, or remote systems/i,
+  ], "yt-review");
+});
+
+test("yt-review returns one deduplicated P0-P3 report without auto handoff", () => {
+  const { content } = readSkill("yt-review");
+  assertMatches(content, [
+    /Deduplicate all reviewer outputs into one report/i,
+    /Prefer a few actionable findings over speculative concerns or style trivia/i,
+    /\*\*P0:\*\*.*\*\*P1:\*\*.*\*\*P2:\*\*.*\*\*P3:\*\*/is,
+    /Verdict.*Target and coverage.*Intent sources.*Reviewer routing.*Findings.*Verification gaps.*Assumptions and residual risks.*Report-only confirmation/is,
+    /file\/area evidence, impact, and a suggested fix/i,
+    /Never apply a suggested fix inside this skill/i,
+    /When actionable findings exist, suggest passing this report to `\/skill:yt-work`/i,
+    /never invoke that skill or start fixes automatically/i,
+  ], "yt-review");
+});

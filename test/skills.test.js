@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const requiredSkillNames = ["yt-brainstorm", "yt-plan", "yt-review", "yt-work"];
+const requiredSkillNames = ["yt-brainstorm", "yt-dispatch", "yt-plan", "yt-review", "yt-work"];
 const productSkillNames = ["yt-brainstorm", "yt-plan"];
 
 function readSkill(name) {
@@ -67,7 +67,7 @@ test("package manifest exposes only the native skills directory", () => {
   assert.equal(manifest.dependencies, undefined);
 });
 
-test("skill discovery contains exactly the required four matching directories and files", () => {
+test("skill discovery contains exactly the required five matching directories and files", () => {
   const skillsDirectory = join(root, "skills");
   const immediateDirectories = readdirSync(skillsDirectory, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
@@ -265,6 +265,140 @@ test("yt-plan produces executable planning without implementing", () => {
     /suggesting `\/skill:yt-work/i,
     /Never invoke the next skill automatically\./,
   ], "yt-plan");
+});
+
+test("yt-dispatch has minimal frontmatter and accepts direct or optional artifact input", () => {
+  const { content } = readSkill("yt-dispatch");
+  const { raw, values } = frontmatter(content);
+
+  assert.deepEqual([...values.keys()], ["name", "description"]);
+  assert.equal(values.get("name"), "yt-dispatch");
+  assert.match(raw, /^description:\s*"[^"\n]+"$/m);
+  assert.equal(raw.split("\n").length, 2);
+  assertMatches(content, [
+    /A direct brainstorm or request is sufficient\./,
+    /may instead supply a PRD, plan, review, or other artifact/i,
+    /no artifact or previous workflow stage is required/i,
+    /current explicit request and corrections/i,
+    /artifact the user explicitly supplied/i,
+    /auto-discovered repository context/i,
+    /dispatcher, not an executor or orchestrator/i,
+  ], "yt-dispatch");
+});
+
+test("yt-dispatch keeps unit extraction and autonomous prompt composition in the main session", () => {
+  const { content } = readSkill("yt-dispatch");
+  assertMatches(content, [
+    /The main session owns dispatch planning/i,
+    /Extract coherent work units, their dependencies, and each unit's mode/i,
+    /read-only.*implementation/is,
+    /main session composes one autonomous, self-contained prompt/i,
+    /objective and expected output/i,
+    /relevant request, artifact, and repository context/i,
+    /precise scope and exclusions/i,
+    /settled decisions and satisfied dependencies/i,
+    /mode-specific safety constraints/i,
+    /validation guidance to work autonomously/i,
+    /Never include secrets, credentials, tokens, authenticated URLs/i,
+  ], "yt-dispatch");
+});
+
+test("yt-dispatch sends only immediately independent units and caps an invocation at five", () => {
+  const { content } = readSkill("yt-dispatch");
+  assertMatches(content, [
+    /dispatchable only when it is immediately independent/i,
+    /no dependency on another unit in this invocation/i,
+    /Do not dispatch a dependent unit/i,
+    /dependent or otherwise blocked units as \*\*undispatched\*\*.*specific dependency or reason/is,
+    /Dispatch at most five units in one invocation/i,
+    /excess undispatched.*invocation limit/is,
+    /Never open more than five tabs/i,
+  ], "yt-dispatch");
+});
+
+test("yt-dispatch requires one complete global confirmation before creating resources", () => {
+  const { content } = readSkill("yt-dispatch");
+  assertMatches(content, [
+    /Before creating any Herdr tab, worktree, or branch, show one global confirmation/i,
+    /unit ID and short tab title/i,
+    /mode and prompt summary/i,
+    /cwd, or the exact proposed worktree, branch, and base/i,
+    /dependencies and whether they are satisfied/i,
+    /dispatchable or undispatched status and reason/i,
+    /Ask for one confirmation of the complete map/i,
+    /Focused clarification may happen before this gate when genuinely required/i,
+    /never ask for per-unit confirmations/i,
+    /If the user declines or materially changes the map, create nothing/i,
+  ], "yt-dispatch");
+});
+
+test("yt-dispatch routes read-only work locally and implementation work to isolated Git worktrees", () => {
+  const { content } = readSkill("yt-dispatch");
+  assertMatches(content, [
+    /read-only unit uses the current project's working directory/i,
+    /prompt must explicitly forbid edits and writes, staging, commits, pushes, remote mutations/i,
+    /implementation unit requires a Git repository and a dedicated isolated Git worktree on its own new branch/i,
+    /branch may start from the source checkout's current `HEAD`/i,
+    /Use that worktree as the launched Pi session's cwd/i,
+    /Never run implementation work in the source checkout or share a worktree or branch/i,
+    /Inspect staged, unstaged, and untracked source-checkout state/i,
+    /dirty source checkout does not by itself block isolated implementation dispatch/i,
+    /local staged, unstaged, and untracked changes are absent from worktrees created from `HEAD`/i,
+    /Do not copy, stash, commit, or otherwise transfer those changes automatically/i,
+  ], "yt-dispatch");
+});
+
+test("yt-dispatch launches visible no-focus Herdr Pi tabs and returns only a mapping", () => {
+  const { content } = readSkill("yt-dispatch");
+  assertMatches(content, [
+    /After explicit confirmation.*immediately launch each dispatchable unit/is,
+    /distinct, visible Herdr tab running an independent interactive Pi session/i,
+    /Launch every tab with no focus/i,
+    /Do not use invisible or background sessions, native subagents, or a subagent fallback/i,
+    /return only a concise mapping/i,
+    /\*\*success\*\*.*\*\*failure\*\*.*\*\*not launched\*\*/is,
+    /do not monitor or poll them, wait for completion, collect outputs, synthesize results/i,
+    /clean up worktrees, merge branches, push, or open a pull request/i,
+    /Do not automatically invoke or suggest a next skill/i,
+  ], "yt-dispatch");
+});
+
+test("yt-dispatch stops on prerequisites or the first partial failure without fallback or rollback", () => {
+  const { content } = readSkill("yt-dispatch");
+  assertMatches(content, [
+    /Missing Herdr or Pi stops all dispatch/i,
+    /Missing Git, an invalid Git checkout, or inability to create an isolated branch\/worktree stops the affected implementation dispatch/i,
+    /Do not replace any missing prerequisite with a hidden process, native subagent, inline execution, or another fallback/i,
+    /stop launching after that first partial failure/i,
+    /Preserve every tab, branch, and worktree already created/i,
+    /Do not clean up, roll back, retry, replace, or continue with later units automatically/i,
+    /failed creation or launch step and preserved resources/i,
+    /because an earlier launch failed/i,
+  ], "yt-dispatch");
+});
+
+test("yt-dispatch rejects unsafe orchestration contradictions", () => {
+  const { content } = readSkill("yt-dispatch");
+  assertRejectsContradictions(content, [
+    /^Dispatch dependent units (?:immediately|in parallel|anyway)\./im,
+    /^Bypass (?:the )?(?:global )?confirmation\./im,
+    /^(?:Open|Launch) (?:6|six|more than five) tabs\./im,
+    /^Monitor (?:the )?(?:tabs|sessions) until completion\./im,
+    /^Collect (?:their )?outputs? and synthesize (?:the )?results\./im,
+    /^Use (?:hidden|invisible) sessions as a fallback\./im,
+    /^Use native subagents as a fallback\./im,
+    /^Automatically (?:clean up|rollback|roll back) created (?:resources|worktrees)\./im,
+  ], [
+    "Dispatch dependent units in parallel.",
+    "Bypass the global confirmation.",
+    "Launch 6 tabs.",
+    "Monitor the sessions until completion.",
+    "Collect their outputs and synthesize the results.",
+    "Use hidden sessions as a fallback.",
+    "Use native subagents as a fallback.",
+    "Automatically clean up created worktrees.",
+    "Automatically roll back created resources.",
+  ], "yt-dispatch");
 });
 
 test("yt-work has valid matching frontmatter and supports direct entry", () => {

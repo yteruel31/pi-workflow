@@ -119,3 +119,82 @@ test("yt-plan produces executable planning without implementing", () => {
     /Never invoke the next skill automatically\./,
   ], "yt-plan");
 });
+
+test("yt-work has valid matching frontmatter and supports direct entry", () => {
+  const { content } = readSkill("yt-work");
+  const { raw, values } = frontmatter(content);
+
+  assert.equal(values.get("name"), "yt-work");
+  assert.match(raw, /^description:\s*"[^"\n]+"$/m);
+  assert.match(raw, /^argument-hint:\s*"[^"\n]+"$/m);
+  assertMatches(content, [
+    /A direct implementation request is sufficient/i,
+    /missing PRD, plan, or previous workflow stage never blocks/i,
+    /current explicit request and corrections/i,
+    /artifact the user explicitly supplied/i,
+    /auto-discovered repository context/i,
+    /Never silently modify a PRD or plan/i,
+  ], "yt-work");
+});
+
+test("yt-work enforces Git and foreign-change preflight", () => {
+  const { content } = readSkill("yt-work");
+  assertMatches(content, [
+    /A Git repository is required/i,
+    /capture the current `HEAD` and branch/i,
+    /staged paths, unstaged paths, and untracked paths separately/i,
+    /If any pre-existing staged change exists, stop/i,
+    /Do not unstage, stash, commit, or otherwise alter it automatically/i,
+    /On a default branch.*require explicit user permission/is,
+    /disjoint from the current unit's files and hunks/i,
+    /block that unit before staging or committing/i,
+  ], "yt-work");
+});
+
+test("yt-work uses exactly one sequential artifact-free worker per unit", () => {
+  const { content } = readSkill("yt-work");
+  assertMatches(content, [
+    /Inspect the available roles before delegation/i,
+    /exactly one fresh native `worker`, strictly sequentially/i,
+    /next worker may start only after the parent has validated and committed/i,
+    /foreground execution with inline returns/i,
+    /`async: false`/,
+    /`output: false`/,
+    /`artifacts: false`/,
+    /bounded unit packet rather than the whole plan/i,
+    /sole writer while active/i,
+    /must not stage, commit, push, modify the PRD or plan, or spawn subagents/i,
+    /parent must not write concurrently/i,
+    /Do not use chains, parallel workers, background runs, retries, resume, replacement workers, review loops, or management actions\./,
+  ], "yt-work");
+});
+
+test("yt-work leaves validation and atomic commits to the parent", () => {
+  const { content } = readSkill("yt-work");
+  assertMatches(content, [
+    /inspect actual status and diff against the unit packet and preflight baseline/i,
+    /confirm no pre-existing change was absorbed/i,
+    /run the decisive focused checks/i,
+    /stage only unit-owned paths or hunks/i,
+    /inspect the complete staged diff and staged path list/i,
+    /one conventional atomic commit/i,
+    /inspect the resulting commit/i,
+    /contains only that unit's changes/i,
+    /Never let a child create the commit/i,
+    /Never push or open a pull request unless the user separately requests it/i,
+  ], "yt-work");
+});
+
+test("yt-work stops failed units without loops and has an inline fallback", () => {
+  const { content } = readSkill("yt-work");
+  assertMatches(content, [
+    /failed or partial worker.*remains uncommitted and stops/is,
+    /Launch no automatic retry or replacement/i,
+    /Report the unit, changed files, checks and results, failure, and next user-controlled action/i,
+    /worker` role or subagent tool is unavailable.*parent may implement/is,
+    /Disclose the skipped delegation/i,
+    /After all units pass, summarize unit-to-commit mapping, verification, deviations, skipped delegation, and residual risks/i,
+    /Suggest `\/skill:yt-review/i,
+    /never invoke it automatically/i,
+  ], "yt-work");
+});

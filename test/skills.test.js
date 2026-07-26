@@ -163,6 +163,7 @@ test("package manifest exposes only the native skills directory", () => {
   const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 
   assert.equal(manifest.private, true);
+  assert.equal(manifest.version, "0.2.0");
   assert.deepEqual(manifest.pi, { skills: ["./skills"] });
   assert.equal(manifest.dependencies, undefined);
 });
@@ -215,7 +216,7 @@ test("README documents installation, all commands, fallback, commits, and report
     /pi update --extensions/,
     /existing tag or commit/i,
     /tag must already be published/i,
-    /@v0\.1\.0/,
+    /@v0\.2\.0/,
     /@<commit>/,
     /\/skill:yt-brainstorm/,
     /\/skill:yt-plan/,
@@ -235,6 +236,66 @@ test("README documents installation, all commands, fallback, commits, and report
     /never applies an autofix/i,
     /no runtime dependencies/i,
   ], "README");
+});
+
+test("README documents dispatch behavior, prerequisites, and its fallback exception", () => {
+  const readme = readFileSync(join(root, "README.md"), "utf8");
+
+  assertMatches(readme, [
+    /\/skill:yt-dispatch/,
+    /independently usable from a direct request/i,
+    /distinct, visible Herdr tabs/i,
+    /maximum of five/i,
+    /one global confirmation/i,
+    /immediately independent units/i,
+    /Read-only units use the current project cwd/i,
+    /implementation units require Git.*separate branches and worktrees/is,
+    /auto-start with no focus/i,
+    /dispatcher-only.*does not monitor/is,
+    /first partial failure.*stops launching.*preserves/is,
+    /dirty source checkout.*warned/is,
+    /`herdr`, `pi`, and `python3`.*additionally requires `git`/is,
+    /`yt-dispatch` is explicitly excluded.*generic `pi-subagents` fallback/is,
+    /no hidden or inline fallback/i,
+    /yt-dispatch\/SKILL\.md/,
+    /yt-dispatch\/scripts\/spawn\.sh\s+# executable/,
+    /Pi-only/i,
+    /no custom agents, commands, extensions, converters, or cross-harness compatibility layer/i,
+  ], "README dispatch documentation");
+});
+
+test("CLAUDE documents the five-skill dispatch contract and layout", () => {
+  const guidance = readFileSync(join(root, "CLAUDE.md"), "utf8");
+
+  assertMatches(guidance, [
+    /provides five independent skills/i,
+    /### `yt-dispatch`/,
+    /immediately independent units, at most five/i,
+    /one global confirmation/i,
+    /current cwd.*isolated Git branches\/worktrees/is,
+    /visible Herdr Pi tabs with no focus/i,
+    /dispatcher.*do not monitor/is,
+    /`herdr`, `pi`, and `python3`, plus `git`/i,
+    /first partial failure.*preserve/is,
+    /dispatch is excluded and has no hidden fallback/i,
+    /yt-dispatch\/SKILL\.md/,
+    /yt-dispatch\/scripts\/spawn\.sh\s+# executable/,
+    /Do not tag, publish, push, or open a pull request unless the user asks/i,
+  ], "CLAUDE dispatch guidance");
+  assert.doesNotMatch(guidance, /exactly four/i);
+});
+
+test("yt-brainstorm conditionally suggests dispatch without invoking either next skill", () => {
+  const { content } = readSkill("yt-brainstorm");
+
+  assertMatches(content, [
+    /confirmed brainstorm contains multiple immediately independent units/i,
+    /benefit from separate visible sessions/i,
+    /optionally suggest `\/skill:yt-dispatch <brainstorm-or-artifact>`/i,
+    /Otherwise, end by suggesting `\/skill:yt-plan <request-or-prd-path>` when ordinary technical planning is useful/i,
+    /Dispatch is never mandatory/i,
+    /Never invoke either skill automatically/i,
+  ], "yt-brainstorm completion");
 });
 
 test("all discovered skills have valid, matching frontmatter", () => {

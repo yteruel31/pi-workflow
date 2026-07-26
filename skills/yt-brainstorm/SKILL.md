@@ -72,4 +72,4 @@ Omit empty sections and keep implementation details out.
 
 A brainstorm is complete when the intended actor, outcome, scope, non-goals, and success signals are clear enough that planning does not need to invent product behavior.
 
-End by suggesting `/skill:yt-plan <request-or-prd-path>` when technical planning is useful. Never invoke the next skill automatically.
+When the confirmed brainstorm contains multiple immediately independent units that would benefit from separate visible sessions, optionally suggest `/skill:yt-dispatch <brainstorm-or-artifact>`. Otherwise, end by suggesting `/skill:yt-plan <request-or-prd-path>` when ordinary technical planning is useful. Dispatch is never mandatory. Never invoke either skill automatically. Never invoke the next skill automatically.

@@ -67,16 +67,45 @@ If the user declines or materially changes the map, create nothing. Rebuild and 
 
 ## Launch without orchestration
 
-After explicit confirmation, create the required implementation branches and worktrees and immediately launch each dispatchable unit in a distinct, visible Herdr tab running an independent interactive Pi session with its self-contained prompt. Launch every tab with no focus so the user's active tab does not change. Do not use invisible or background sessions, native subagents, or a subagent fallback.
+After explicit confirmation, use only the launcher bundled with this skill. Resolve it from the directory containing this loaded `SKILL.md`; never use a home-directory skill or the user-scoped `herdr-pi-delegate` skill:
 
-Process units in the confirmed order. If any branch, worktree, tab, or Pi launch fails, stop launching after that first partial failure. Preserve every tab, branch, and worktree already created, including resources created for the failed unit. Do not clean up, roll back, retry, replace, or continue with later units automatically.
+```bash
+# SKILL_FILE is the absolute path of this loaded skills/yt-dispatch/SKILL.md.
+SKILL_DIR="$(cd "$(dirname "$SKILL_FILE")" && pwd -P)"
+SPAWN="$SKILL_DIR/scripts/spawn.sh"
+```
+
+Create each self-contained prompt as a mode-600 temporary file outside the repository, for example in a mode-700 directory made with `mktemp -d "${TMPDIR:-/tmp}/yt-dispatch-briefs.XXXXXXXX"`. Do not echo prompt content or place prompt files in the source checkout or an implementation worktree. The launcher securely copies each prompt under `${TMPDIR:-/tmp}/yt-dispatch-$(id -u)` and returns the copied path.
+
+Process dispatchable units strictly sequentially in the confirmed order. For a read-only unit, invoke:
+
+```bash
+launch_args=(--mode read-only --title "$TITLE" --prompt-file "$PROMPT_FILE" --cwd "$SOURCE_CWD")
+[[ -z "$WORKSPACE_ID" ]] || launch_args+=(--workspace "$WORKSPACE_ID")
+"$SPAWN" "${launch_args[@]}"
+```
+
+For an implementation unit, pass the exact base, new branch, and absolute new worktree path from the confirmed map; the launcher creates the branch and worktree before launching:
+
+```bash
+launch_args=(--mode implementation --title "$TITLE" --prompt-file "$PROMPT_FILE"
+  --cwd "$SOURCE_CWD" --base "$BASE_COMMIT" --branch "$BRANCH" --worktree "$WORKTREE")
+[[ -z "$WORKSPACE_ID" ]] || launch_args+=(--workspace "$WORKSPACE_ID")
+"$SPAWN" "${launch_args[@]}"
+```
+
+Pass the optional `--workspace` value as two ordinary array arguments only when it was selected; do not interpolate or evaluate user input. The bundled launcher always passes `--no-focus` to `herdr tab create`, launches `pi --name ... @prompt-copy`, and emits one JSON mapping. Launch every tab with no focus so the user's active tab does not change. It validates Herdr, Pi, Python, workspace availability, and mode-specific Git constraints; it never copies, stashes, or commits source changes.
+
+Immediately launch each dispatchable unit in a distinct, visible Herdr tab running an independent interactive Pi session with its self-contained prompt. Do not use invisible or background sessions, native subagents, or a subagent fallback.
+
+Capture and parse the launcher's single stdout JSON object. Record its `workspace_id`, `tab_id`, `pane_id`, `title`, `mode`, `source_cwd`, `session_cwd`, and `prompt_path`, plus `base`, `branch`, and `worktree` for implementation. Treat a nonzero exit, malformed mapping, or mismatched confirmed value as the first failure and stop launching after that first partial failure. Preserve every tab, branch, and worktree already created, along with every copied prompt and resources created for the failed unit. Do not clean up, roll back, retry, replace, or continue with later units automatically.
 
 ## Return the launch mapping
 
 After launch attempts, return only a concise mapping of each confirmed unit to one of:
 
-- **success** — tab title, mode, cwd, and implementation worktree/branch/base when applicable;
-- **failure** — the failed creation or launch step and preserved resources;
+- **success** — the launcher's tab title, mode, cwd, workspace/tab/pane identifiers, copied prompt path, and implementation worktree/branch/base when applicable;
+- **failure** — the failed creation or launch step and preserved resources, identifying validation, worktree creation, tab creation, Pi launch, or mapping failure and every known retained resource;
 - **not launched** — dependency/limit/prerequisite reason, or because an earlier launch failed.
 
-Once tabs are launched, do not monitor or poll them, wait for completion, collect outputs, synthesize results, coordinate follow-up, clean up worktrees, merge branches, push, or open a pull request. The launched sessions and their results remain user-controlled. Do not automatically invoke or suggest a next skill.
+Do not print prompt contents or invent identifiers missing from a failed launch. Once tabs are launched, do not monitor or poll them, wait for completion, collect outputs, synthesize results, coordinate follow-up, clean up worktrees, merge branches, push, or open a pull request. The launched sessions and their results remain user-controlled. Do not automatically invoke or suggest a next skill.

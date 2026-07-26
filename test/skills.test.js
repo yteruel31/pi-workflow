@@ -1,10 +1,23 @@
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const dispatchScript = join(root, "skills", "yt-dispatch", "scripts", "spawn.sh");
 const requiredSkillNames = ["yt-brainstorm", "yt-dispatch", "yt-plan", "yt-review", "yt-work"];
 const productSkillNames = ["yt-brainstorm", "yt-plan"];
 
@@ -57,6 +70,93 @@ function findNamedFiles(directory, fileName) {
     if (entry.isFile() && entry.name === fileName) matches.push(path);
   }
   return matches;
+}
+
+function run(command, args = [], options = {}) {
+  return spawnSync(command, args, {
+    encoding: "utf8",
+    ...options,
+  });
+}
+
+function runGit(repository, ...args) {
+  const result = run("git", ["-C", repository, ...args]);
+  assert.equal(result.status, 0, `git ${args.join(" ")} failed: ${result.stderr}`);
+  return result.stdout.trim();
+}
+
+function createDispatchHarness(t, { workspaceJson, tabFailure = false } = {}) {
+  const directory = mkdtempSync(join(tmpdir(), "yt-dispatch-test-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+
+  const bin = join(directory, "bin");
+  const temporary = join(directory, "tmp");
+  mkdirSync(bin);
+  mkdirSync(temporary);
+  const herdrLog = join(directory, "herdr.log");
+  const herdr = join(bin, "herdr");
+  writeFileSync(herdr, `#!/usr/bin/env bash
+set -euo pipefail
+printf '%q ' "$@" >> "$FAKE_HERDR_LOG"
+printf '\\n' >> "$FAKE_HERDR_LOG"
+if [[ "\${1:-} \${2:-}" == "workspace list" ]]; then
+  printf '%s\\n' "$FAKE_WORKSPACE_JSON"
+  exit 0
+fi
+if [[ "\${1:-} \${2:-}" == "tab create" ]]; then
+  if [[ "\${FAKE_TAB_FAILURE:-0}" == "1" ]]; then
+    echo "synthetic tab failure" >&2
+    exit 19
+  fi
+  printf '%s\\n' '{"result":{"tab":{"tab_id":"tab-1"},"root_pane":{"pane_id":"pane-1"}}}'
+  exit 0
+fi
+if [[ "\${1:-} \${2:-}" == "pane run" ]]; then
+  printf '%s\\n' '{"result":{}}'
+  exit 0
+fi
+echo "unexpected fake herdr invocation" >&2
+exit 64
+`);
+  chmodSync(herdr, 0o755);
+
+  const pi = join(bin, "pi");
+  writeFileSync(pi, "#!/usr/bin/env bash\nexit 0\n");
+  chmodSync(pi, 0o755);
+
+  const prompt = join(directory, "prompt.md");
+  writeFileSync(prompt, "Self-contained dispatch brief.\n", { mode: 0o600 });
+
+  return {
+    directory,
+    herdrLog,
+    prompt,
+    env: {
+      ...process.env,
+      PATH: `${bin}:${process.env.PATH}`,
+      TMPDIR: temporary,
+      FAKE_HERDR_LOG: herdrLog,
+      FAKE_WORKSPACE_JSON: workspaceJson ?? '{"result":{"workspaces":[{"workspace_id":"workspace-1","focused":true}]}}',
+      FAKE_TAB_FAILURE: tabFailure ? "1" : "0",
+    },
+  };
+}
+
+function createGitRepository(directory) {
+  const repository = join(directory, "source");
+  mkdirSync(repository);
+  runGit(repository, "init", "-q");
+  runGit(repository, "config", "user.name", "Dispatch Test");
+  runGit(repository, "config", "user.email", "dispatch@example.test");
+  writeFileSync(join(repository, "tracked.txt"), "base tracked\n");
+  writeFileSync(join(repository, "other.txt"), "base other\n");
+  runGit(repository, "add", "tracked.txt", "other.txt");
+  runGit(repository, "commit", "-q", "-m", "base");
+  return { repository, base: runGit(repository, "rev-parse", "HEAD") };
+}
+
+function launch(harness, args) {
+  return run(dispatchScript, args, { env: harness.env });
 }
 
 test("package manifest exposes only the native skills directory", () => {
@@ -399,6 +499,235 @@ test("yt-dispatch rejects unsafe orchestration contradictions", () => {
     "Automatically clean up created worktrees.",
     "Automatically roll back created resources.",
   ], "yt-dispatch");
+});
+
+test("yt-dispatch documents its bundled launcher, temporary prompts, and sequential mapping handling", () => {
+  const { content } = readSkill("yt-dispatch");
+  assertMatches(content, [
+    /directory containing this loaded `SKILL\.md`/i,
+    /SPAWN="\$SKILL_DIR\/scripts\/spawn\.sh"/,
+    /never use a home-directory skill or the user-scoped `herdr-pi-delegate` skill/i,
+    /mode-600 temporary file outside the repository/i,
+    /strictly sequentially in the confirmed order/i,
+    /--mode read-only/,
+    /--mode implementation/,
+    /exact base, new branch, and absolute new worktree path/i,
+    /Capture and parse the launcher's single stdout JSON object/i,
+    /nonzero exit, malformed mapping, or mismatched confirmed value as the first failure/i,
+    /do not monitor or poll/i,
+  ], "yt-dispatch");
+});
+
+test("yt-dispatch launcher provides help and rejects invalid arguments without mutation", () => {
+  assert.equal(statSync(dispatchScript).mode & 0o111, 0o111, "bundled launcher must be executable");
+
+  const help = run(dispatchScript, ["--help"]);
+  assert.equal(help.status, 0);
+  assert.match(help.stdout, /--mode read-only\|implementation/);
+  assert.doesNotMatch(help.stdout, /--focus/);
+
+  const missing = run(dispatchScript);
+  assert.equal(missing.status, 2);
+  assert.match(missing.stderr, /--mode is required/);
+
+  const incompleteImplementation = run(dispatchScript, [
+    "--mode", "implementation",
+    "--title", "Incomplete",
+    "--prompt-file", "/not/used",
+    "--cwd", "/not/used",
+  ]);
+  assert.equal(incompleteImplementation.status, 2);
+  assert.match(incompleteImplementation.stderr, /--base is required/);
+
+  const focusOverride = run(dispatchScript, ["--focus"]);
+  assert.equal(focusOverride.status, 2);
+  assert.match(focusOverride.stderr, /Unknown argument: --focus/);
+});
+
+test("yt-dispatch launcher starts a read-only no-focus tab and emits one secure JSON mapping", (t) => {
+  const harness = createDispatchHarness(t);
+  const source = join(harness.directory, "read-only-source");
+  mkdirSync(source);
+
+  const result = launch(harness, [
+    "--mode", "read-only",
+    "--title", "Read only check",
+    "--prompt-file", harness.prompt,
+    "--cwd", source,
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim().split("\n").length, 1);
+
+  const mapping = JSON.parse(result.stdout);
+  assert.deepEqual(
+    {
+      workspace_id: mapping.workspace_id,
+      tab_id: mapping.tab_id,
+      pane_id: mapping.pane_id,
+      title: mapping.title,
+      mode: mapping.mode,
+      source_cwd: mapping.source_cwd,
+      session_cwd: mapping.session_cwd,
+    },
+    {
+      workspace_id: "workspace-1",
+      tab_id: "tab-1",
+      pane_id: "pane-1",
+      title: "Read only check",
+      mode: "read-only",
+      source_cwd: source,
+      session_cwd: source,
+    },
+  );
+  assert.equal(readFileSync(mapping.prompt_path, "utf8"), readFileSync(harness.prompt, "utf8"));
+  assert.equal(statSync(mapping.prompt_path).mode & 0o777, 0o600);
+  assert.ok(mapping.prompt_path.startsWith(`${harness.env.TMPDIR}/yt-dispatch-`));
+
+  const calls = readFileSync(harness.herdrLog, "utf8").trim().split("\n");
+  const tabCall = calls.find((line) => line.startsWith("tab create "));
+  const paneCall = calls.find((line) => line.startsWith("pane run "));
+  assert.ok(tabCall);
+  assert.match(tabCall, /--cwd .*read-only-source/);
+  assert.match(tabCall, /--no-focus/);
+  assert.doesNotMatch(tabCall, /(^| )--focus( |$)/);
+  assert.match(paneCall, /pi.*--name.*Read.*only.*@.*prompt-/);
+});
+
+test("yt-dispatch launcher creates an implementation branch and worktree at the exact base", (t) => {
+  const harness = createDispatchHarness(t);
+  const { repository, base } = createGitRepository(harness.directory);
+  const worktree = join(harness.directory, "implementation-worktree");
+
+  const result = launch(harness, [
+    "--mode", "implementation",
+    "--title", "Implement exact base",
+    "--prompt-file", harness.prompt,
+    "--cwd", repository,
+    "--base", base,
+    "--branch", "dispatch/exact-base",
+    "--worktree", worktree,
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+
+  const mapping = JSON.parse(result.stdout);
+  assert.equal(mapping.base, base);
+  assert.equal(mapping.branch, "dispatch/exact-base");
+  assert.equal(mapping.worktree, worktree);
+  assert.equal(mapping.source_cwd, repository);
+  assert.equal(mapping.session_cwd, worktree);
+  assert.equal(runGit(worktree, "rev-parse", "HEAD"), base);
+  assert.equal(runGit(worktree, "branch", "--show-current"), "dispatch/exact-base");
+
+  const tabCall = readFileSync(harness.herdrLog, "utf8")
+    .split("\n")
+    .find((line) => line.startsWith("tab create "));
+  assert.match(tabCall, /--cwd .*implementation-worktree/);
+  assert.match(tabCall, /--no-focus/);
+});
+
+test("yt-dispatch launcher allows dirty source state but excludes it from the new worktree", (t) => {
+  const harness = createDispatchHarness(t);
+  const { repository, base } = createGitRepository(harness.directory);
+  writeFileSync(join(repository, "tracked.txt"), "staged source content\n");
+  runGit(repository, "add", "tracked.txt");
+  writeFileSync(join(repository, "other.txt"), "unstaged source content\n");
+  writeFileSync(join(repository, "untracked.txt"), "untracked source content\n");
+  const worktree = join(harness.directory, "dirty-worktree");
+
+  const result = launch(harness, [
+    "--mode", "implementation",
+    "--title", "Dirty source check",
+    "--prompt-file", harness.prompt,
+    "--cwd", repository,
+    "--base", base,
+    "--branch", "dispatch/dirty-source",
+    "--worktree", worktree,
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stderr, /WARNING: source checkout has staged, unstaged, untracked changes/);
+  assert.match(result.stderr, /not copied into the HEAD-based worktree/);
+  assert.equal(readFileSync(join(worktree, "tracked.txt"), "utf8"), "base tracked\n");
+  assert.equal(readFileSync(join(worktree, "other.txt"), "utf8"), "base other\n");
+  assert.equal(existsSync(join(worktree, "untracked.txt")), false);
+  assert.equal(readFileSync(join(repository, "tracked.txt"), "utf8"), "staged source content\n");
+});
+
+test("yt-dispatch launcher rejects branch and worktree collisions before launch", async (t) => {
+  await t.test("existing branch", (t) => {
+    const harness = createDispatchHarness(t);
+    const { repository, base } = createGitRepository(harness.directory);
+    runGit(repository, "branch", "dispatch/collision", base);
+    const result = launch(harness, [
+      "--mode", "implementation",
+      "--title", "Branch collision",
+      "--prompt-file", harness.prompt,
+      "--cwd", repository,
+      "--base", base,
+      "--branch", "dispatch/collision",
+      "--worktree", join(harness.directory, "unused-worktree"),
+    ]);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /local branch already exists/);
+    assert.doesNotMatch(readFileSync(harness.herdrLog, "utf8"), /tab create/);
+  });
+
+  await t.test("existing worktree path", (t) => {
+    const harness = createDispatchHarness(t);
+    const { repository, base } = createGitRepository(harness.directory);
+    const collision = join(harness.directory, "existing-path");
+    mkdirSync(collision);
+    const result = launch(harness, [
+      "--mode", "implementation",
+      "--title", "Path collision",
+      "--prompt-file", harness.prompt,
+      "--cwd", repository,
+      "--base", base,
+      "--branch", "dispatch/path-collision",
+      "--worktree", collision,
+    ]);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /path must be new/);
+    const branchLookup = run("git", ["-C", repository, "show-ref", "--verify", "--quiet", "refs/heads/dispatch/path-collision"]);
+    assert.equal(branchLookup.status, 1);
+    assert.doesNotMatch(readFileSync(harness.herdrLog, "utf8"), /tab create/);
+  });
+});
+
+test("yt-dispatch launcher rejects a missing Herdr workspace", (t) => {
+  const harness = createDispatchHarness(t, { workspaceJson: '{"result":{"workspaces":[]}}' });
+  const source = join(harness.directory, "source");
+  mkdirSync(source);
+  const result = launch(harness, [
+    "--mode", "read-only",
+    "--title", "No workspace",
+    "--prompt-file", harness.prompt,
+    "--cwd", source,
+  ]);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /No requested or available Herdr workspace/);
+  assert.doesNotMatch(readFileSync(harness.herdrLog, "utf8"), /tab create/);
+});
+
+test("yt-dispatch launcher leaves a created worktree intact when tab creation fails", (t) => {
+  const harness = createDispatchHarness(t, { tabFailure: true });
+  const { repository, base } = createGitRepository(harness.directory);
+  const worktree = join(harness.directory, "preserved-worktree");
+  const result = launch(harness, [
+    "--mode", "implementation",
+    "--title", "Preserve on failure",
+    "--prompt-file", harness.prompt,
+    "--cwd", repository,
+    "--base", base,
+    "--branch", "dispatch/preserved",
+    "--worktree", worktree,
+  ]);
+
+  assert.equal(result.status, 19);
+  assert.match(result.stderr, /synthetic tab failure/);
+  assert.equal(existsSync(worktree), true);
+  assert.equal(runGit(worktree, "rev-parse", "HEAD"), base);
+  assert.equal(runGit(worktree, "branch", "--show-current"), "dispatch/preserved");
+  assert.equal(result.stdout, "");
 });
 
 test("yt-work has valid matching frontmatter and supports direct entry", () => {

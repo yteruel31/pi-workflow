@@ -85,7 +85,7 @@ function runGit(repository, ...args) {
   return result.stdout.trim();
 }
 
-function createDispatchHarness(t, { workspaceJson, tabFailure = false } = {}) {
+function createDispatchHarness(t, { workspaceJson, tabFailure = false, malformedTab = false, mismatch = false, paneFailure = false } = {}) {
   const directory = mkdtempSync(join(tmpdir(), "yt-dispatch-test-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
 
@@ -104,14 +104,28 @@ if [[ "\${1:-} \${2:-}" == "workspace list" ]]; then
   exit 0
 fi
 if [[ "\${1:-} \${2:-}" == "tab create" ]]; then
+  args=("$@"); cwd=""; label=""; for ((i=0;i<\${#args[@]};i++)); do [[ "\${args[i]}" == --cwd ]] && cwd="\${args[i+1]}"; [[ "\${args[i]}" == --label ]] && label="\${args[i+1]}"; done
+  printf '%s\\n%s\\n' "$cwd" "$label" > "$FAKE_HERDR_LOG.state"
   if [[ "\${FAKE_TAB_FAILURE:-0}" == "1" ]]; then
     echo "synthetic tab failure" >&2
     exit 19
   fi
-  printf '%s\\n' '{"result":{"tab":{"tab_id":"tab-1"},"root_pane":{"pane_id":"pane-1"}}}'
+  if [[ "\${FAKE_MALFORMED_TAB:-0}" == "1" ]]; then printf '%s\\n' '{"result":{}}'; else printf '%s\\n' '{"result":{"tab":{"tab_id":"tab-1","workspace_id":"workspace-1","label":"created"},"root_pane":{"pane_id":"pane-1","tab_id":"tab-1"}}}'; fi
+  exit 0
+fi
+if [[ "\${1:-} \${2:-}" == "tab get" ]]; then
+  label="$(sed -n '2p' "$FAKE_HERDR_LOG.state")"
+  printf '{"result":{"tab":{"tab_id":"tab-1","workspace_id":"workspace-1","label":"%s"}}}\\n' "$label"
+  exit 0
+fi
+if [[ "\${1:-} \${2:-}" == "pane get" ]]; then
+  cwd="$(sed -n '1p' "$FAKE_HERDR_LOG.state")"
+  [[ "\${FAKE_MISMATCH:-0}" == 1 ]] && cwd="/wrong/cwd"
+  printf '{"result":{"pane":{"pane_id":"pane-1","tab_id":"tab-1","workspace_id":"workspace-1","cwd":"%s"}}}\\n' "$cwd"
   exit 0
 fi
 if [[ "\${1:-} \${2:-}" == "pane run" ]]; then
+  [[ "\${FAKE_PANE_FAILURE:-0}" == 1 ]] && { echo "synthetic pane failure" >&2; exit 23; }
   printf '%s\\n' '{"result":{}}'
   exit 0
 fi
@@ -138,6 +152,9 @@ exit 64
       FAKE_HERDR_LOG: herdrLog,
       FAKE_WORKSPACE_JSON: workspaceJson ?? '{"result":{"workspaces":[{"workspace_id":"workspace-1","focused":true}]}}',
       FAKE_TAB_FAILURE: tabFailure ? "1" : "0",
+      FAKE_MALFORMED_TAB: malformedTab ? "1" : "0",
+      FAKE_MISMATCH: mismatch ? "1" : "0",
+      FAKE_PANE_FAILURE: paneFailure ? "1" : "0",
     },
   };
 }
@@ -620,6 +637,7 @@ test("yt-dispatch launcher starts a read-only no-focus tab and emits one secure 
   assert.equal(result.stdout.trim().split("\n").length, 1);
 
   const mapping = JSON.parse(result.stdout);
+  assert.equal(mapping.status, "success");
   assert.deepEqual(
     {
       workspace_id: mapping.workspace_id,
@@ -651,7 +669,12 @@ test("yt-dispatch launcher starts a read-only no-focus tab and emits one secure 
   assert.match(tabCall, /--cwd .*read-only-source/);
   assert.match(tabCall, /--no-focus/);
   assert.doesNotMatch(tabCall, /(^| )--focus( |$)/);
-  assert.match(paneCall, /pi.*--name.*Read.*only.*@.*prompt-/);
+  assert.match(paneCall, /pi.*--tools/);
+  assert.match(paneCall, /read.*grep.*find.*ls/);
+  assert.match(paneCall, /--name.*Read.*only.*@.*prompt-/);
+  assert.doesNotMatch(paneCall, /bash|edit|write|subagent/);
+  assert.ok(calls.some((line) => line.startsWith("tab get tab-1")));
+  assert.ok(calls.some((line) => line.startsWith("pane get pane-1")));
 });
 
 test("yt-dispatch launcher creates an implementation branch and worktree at the exact base", (t) => {
@@ -783,12 +806,64 @@ test("yt-dispatch launcher leaves a created worktree intact when tab creation fa
     "--worktree", worktree,
   ]);
 
-  assert.equal(result.status, 19);
+  assert.notEqual(result.status, 0);
   assert.match(result.stderr, /synthetic tab failure/);
   assert.equal(existsSync(worktree), true);
   assert.equal(runGit(worktree, "rev-parse", "HEAD"), base);
   assert.equal(runGit(worktree, "branch", "--show-current"), "dispatch/preserved");
-  assert.equal(result.stdout, "");
+  const failure = JSON.parse(result.stdout);
+  assert.equal(failure.status, "failure");
+  assert.equal(failure.stage, "tab-create");
+  assert.equal(failure.worktree_retained, true);
+  assert.equal(failure.branch_retained, true);
+  assert.equal(failure.prompt_retained, true);
+});
+
+test("yt-dispatch launcher reports malformed, mismatched, and pane-run partial failures", async (t) => {
+  for (const [name, options, stage] of [
+    ["malformed create response", { malformedTab: true }, "tab-response"],
+    ["observed mismatch", { mismatch: true }, "observed-mismatch"],
+    ["pane run failure", { paneFailure: true }, "pane-run"],
+  ]) await t.test(name, (t) => {
+    const harness = createDispatchHarness(t, options);
+    const source = join(harness.directory, "source"); mkdirSync(source);
+    const result = launch(harness, ["--mode", "read-only", "--title", "Failure check", "--prompt-file", harness.prompt, "--cwd", source]);
+    assert.notEqual(result.status, 0);
+    assert.equal(result.stdout.trim().split("\n").length, 1);
+    const failure = JSON.parse(result.stdout);
+    assert.equal(failure.status, "failure"); assert.equal(failure.stage, stage); assert.equal(failure.prompt_retained, true);
+    if (stage === "observed-mismatch") assert.equal(failure.observed.pane_cwd, "/wrong/cwd");
+    if (stage !== "tab-response") assert.equal(failure.tab_retained, true);
+    if (stage !== "pane-run") assert.doesNotMatch(readFileSync(harness.herdrLog, "utf8"), /pane run/);
+  });
+});
+
+test("yt-dispatch launcher rejects nested-source and symlink-parent worktrees", async (t) => {
+  await t.test("nested source", (t) => {
+    const h=createDispatchHarness(t); const {repository,base}=createGitRepository(h.directory);
+    const r=launch(h,["--mode","implementation","--title","Nested","--prompt-file",h.prompt,"--cwd",repository,"--base",base,"--branch","dispatch/nested","--worktree",join(repository,"nested")]);
+    assert.equal(r.status,2); assert.match(r.stderr,/must not equal or be nested/);
+  });
+  await t.test("symlink parent", (t) => {
+    const h=createDispatchHarness(t); const {repository,base}=createGitRepository(h.directory); const real=join(h.directory,"real"); mkdirSync(real);
+    const link=join(h.directory,"link"); run("ln",["-s",real,link]);
+    const r=launch(h,["--mode","implementation","--title","Link","--prompt-file",h.prompt,"--cwd",repository,"--base",base,"--branch","dispatch/link","--worktree",join(link,"wt")]);
+    assert.equal(r.status,2); assert.match(r.stderr,/must not use symlinks/);
+  });
+});
+
+test("yt-dispatch disables checkout hooks while adding a worktree", (t) => {
+  const h=createDispatchHarness(t); const {repository,base}=createGitRepository(h.directory); const marker=join(h.directory,"hook-ran");
+  const hooks=join(h.directory,"hooks"); mkdirSync(hooks); const hook=join(hooks,"post-checkout"); writeFileSync(hook,`#!/bin/sh\ntouch '${marker}'\n`); chmodSync(hook,0o755); runGit(repository,"config","core.hooksPath",hooks);
+  const r=launch(h,["--mode","implementation","--title","No hook","--prompt-file",h.prompt,"--cwd",repository,"--base",base,"--branch","dispatch/no-hook","--worktree",join(h.directory,"wt")]);
+  assert.equal(r.status,0,r.stderr); assert.equal(existsSync(marker),false);
+});
+
+test("yt-dispatch supports exact SHA-256 commit IDs when Git supports them", (t) => {
+  const probe=run("git",["init","--object-format=sha256","-q",join(tmpdir(),`yt-sha-probe-${process.pid}`)]); const probePath=join(tmpdir(),`yt-sha-probe-${process.pid}`); rmSync(probePath,{recursive:true,force:true});
+  if (probe.status !== 0) return t.skip("installed Git lacks SHA-256 repository support");
+  const h=createDispatchHarness(t); const repository=join(h.directory,"sha-source"); mkdirSync(repository); runGit(repository,"init","--object-format=sha256","-q"); runGit(repository,"config","user.name","Test"); runGit(repository,"config","user.email","t@example.test"); writeFileSync(join(repository,"a"),"a"); runGit(repository,"add","a"); runGit(repository,"commit","-q","-m","base"); const base=runGit(repository,"rev-parse","HEAD"); assert.equal(base.length,64);
+  const r=launch(h,["--mode","implementation","--title","SHA256","--prompt-file",h.prompt,"--cwd",repository,"--base",base,"--branch","dispatch/sha256","--worktree",join(h.directory,"sha-wt")]); assert.equal(r.status,0,r.stderr); assert.equal(JSON.parse(r.stdout).base,base);
 });
 
 test("yt-work has valid matching frontmatter and supports direct entry", () => {

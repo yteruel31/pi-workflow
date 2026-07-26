@@ -35,7 +35,8 @@ The package intentionally replaces heavier workflow systems with a simple cycle:
 
 - Accept a direct request or optional artifact and dispatch only immediately independent units, at most five.
 - Show one global confirmation before creating resources.
-- Launch read-only work from the current cwd and implementation work in isolated Git branches/worktrees.
+- Launch read-only work from the current cwd with Pi tools restricted to `read,grep,find,ls`; credentials and unobservable external behavior remain trust boundaries.
+- Launch implementation work in isolated Git branches/worktrees outside repository/worktree roots, reject symlink parents, and disable checkout hooks; checkout filters and repository Git configuration remain trusted prerequisites.
 - Start separate visible Herdr Pi tabs with no focus; act only as dispatcher and do not monitor them.
 - Require `herdr`, `pi`, and `python3`, plus `git` for implementation; do not use inline or subagent fallbacks.
 - Stop on the first partial failure and preserve already-created tabs, branches, and worktrees.

@@ -45,7 +45,9 @@ Inspect the available roles before delegation. For the current unit, run exactly
 
 Immediately before launching each worker, capture a per-unit Git metadata snapshot: expected `HEAD`, current branch, the complete staged/index state, all local refs, and redacted remote configuration or URLs. Never retain credentials in the snapshot.
 
-Use a fresh context and foreground execution with inline returns: set `context: "fresh"`, `async: false`, `output: false`, and `artifacts: false`. Send a bounded unit packet rather than the whole plan. Include:
+Use a fresh context and foreground execution with inline returns: set `context: "fresh"`, `async: false`, `output: false`, and `artifacts: false`. For every mutation-capable worker, omit `turnBudget` and omit any hard or count-based `toolBudget`. Turn and tool counts are not safe delivery boundaries: they can expire after implementation and checks complete, misclassifying completed work as a partial run. Keep execution bounded by the unit packet. A generous outer `timeoutMs` is allowed only as a wall-clock fail-safe, never as a mutation-safe completion or checkpoint boundary.
+
+Send a bounded unit packet rather than the whole plan. Include:
 
 - the unit ID, goal, requirements, dependencies, and allowed paths;
 - the relevant repository instructions and implementation context;

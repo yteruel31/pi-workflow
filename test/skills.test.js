@@ -62,6 +62,13 @@ function assertRejectsContradictions(content, patterns, syntheticDirectives, lab
   }
 }
 
+const workerBudgetContradictions = [
+  // A budget-setting verb is contradictory unless the same directive explicitly omits the budget.
+  /\b(?:set|add|give|assign|configure|pass)\b(?=[^\n.]{0,160}\b(?:turnBudget|turn budget)\b)(?![^\n.]{0,160}\b(?:without|omit|omitting|no|neither)\b)[^\n.]{0,160}\b(?:turnBudget|turn budget)\b/i,
+  /\b(?:launch|run|invoke|call|start)\b(?=[^\n.]{0,160}\bworkers?\b)(?=[^\n.]{0,160}\b(?:turnBudget|turn budget)\b)(?![^\n.]{0,160}\b(?:without|omit|omitting|no|neither)\b)[^\n.]{0,160}\b(?:turnBudget|turn budget)\b/i,
+  /\b(?:set|add|give|assign|configure|pass|launch|run|invoke|call|start)\b(?=[^\n.]{0,160}\bworkers?\b)(?=[^\n.]{0,160}\btoolBudget\b[^\n.]{0,80}\bhard\b|[^\n.]{0,160}\b(?:hard|count-based)\b[^\n.]{0,80}\b(?:toolBudget|tool budget)\b)(?![^\n.]{0,160}\b(?:without|omit|omitting|no|neither)\b)[^\n.]{0,240}/i,
+];
+
 function findNamedFiles(directory, fileName) {
   const matches = [];
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -243,6 +250,8 @@ test("README documents installation, all commands, fallback, commits, and report
     /optional enrichment.*not installed transitively/is,
     /graceful inline fallback/i,
     /one fresh `worker` per implementation unit, strictly sequentially/i,
+    /Mutation-capable workers receive neither a `turnBudget` nor a hard\/count-based `toolBudget`/i,
+    /generous outer `timeoutMs`.*only as a wall-clock fail-safe/i,
     /one atomic commit for each passing unit/i,
     /does not push or open a pull request automatically/i,
     /`yt-review` is report-only/i,
@@ -299,6 +308,8 @@ test("CLAUDE documents the five-skill dispatch contract and layout", () => {
     /dispatch is excluded and has no hidden fallback/i,
     /yt-dispatch\/SKILL\.md/,
     /yt-dispatch\/scripts\/spawn\.sh\s+# executable/,
+    /Omit `turnBudget` and hard\/count-based `toolBudget` for mutation-capable workers/i,
+    /outer `timeoutMs` is only a wall-clock fail-safe/i,
     /Do not tag, publish, push, or open a pull request unless the user asks/i,
   ], "CLAUDE dispatch guidance");
   assert.doesNotMatch(guidance, /exactly four/i);
@@ -355,6 +366,27 @@ test("skills reject contradictory workflow directives", () => {
     "Automatically retry failed workers.",
     "Automatically replace failed workers.",
   ], "yt-work");
+
+  assertNoForbiddenPatterns(work, workerBudgetContradictions, "yt-work");
+  assertNoForbiddenPatterns(
+    `${work}\nConfigure the worker without a turnBudget.\n`,
+    workerBudgetContradictions,
+    "yt-work compliant budget omission",
+  );
+  for (const directive of [
+    "Set the worker turnBudget to 40.",
+    "Launch the worker with a turn budget of 40.",
+    "Give the worker a hard toolBudget of 100.",
+    "Configure the worker with a count-based tool budget.",
+    "Launch the worker using { turnBudget: { maxTurns: 40 } }.",
+    "Launch the worker using { toolBudget: { hard: 100 } }.",
+  ]) {
+    assert.throws(
+      () => assertNoForbiddenPatterns(`${work}\n${directive}\n`, workerBudgetContradictions, "yt-work"),
+      { name: "AssertionError" },
+      `yt-work must reject contradictory budget directive: ${directive}`,
+    );
+  }
 
   const { content: review } = readSkill("yt-review");
   assertRejectsContradictions(review, [
@@ -923,6 +955,10 @@ test("yt-work uses exactly one sequential artifact-free worker per unit", () => 
     /`async: false`/,
     /`output: false`/,
     /`artifacts: false`/,
+    /mutation-capable worker, omit `turnBudget` and omit any hard or count-based `toolBudget`/i,
+    /Turn and tool counts are not safe delivery boundaries/i,
+    /expire after implementation and checks complete, misclassifying completed work as a partial run/i,
+    /generous outer `timeoutMs`.*wall-clock fail-safe.*never as a mutation-safe completion or checkpoint boundary/i,
     /bounded unit packet rather than the whole plan/i,
     /sole writer while active/i,
     /must not stage, commit, push, modify the PRD or plan, or spawn subagents/i,

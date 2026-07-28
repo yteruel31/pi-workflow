@@ -42,7 +42,7 @@ Every skill, including `yt-dispatch`, is independently usable from a direct requ
 When Pi's native subagent roles are available, the skills use a deliberately small delegation model:
 
 - **Brainstorm and plan:** optionally use at most one local `scout` and one external `researcher` when their evidence would materially improve the result.
-- **Work:** use exactly one fresh `worker` per implementation unit, strictly sequentially. The parent validates the diff and checks, then creates one atomic commit for each passing unit before starting the next.
+- **Work:** use exactly one fresh `worker` per implementation unit, strictly sequentially. Mutation-capable workers receive neither a `turnBudget` nor a hard/count-based `toolBudget`; bounded unit packets define scope, while a generous outer `timeoutMs` may serve only as a wall-clock fail-safe. The parent validates the diff and checks, then creates one atomic commit for each passing unit before starting the next.
 - **Review:** select one to three fresh `reviewer` roles from semantic complexity and synthesize one report-only result.
 
 [`pi-subagents`](https://www.npmjs.com/package/pi-subagents) is optional enrichment and is not installed transitively. To enable role delegation:

@@ -62,6 +62,13 @@ function assertRejectsContradictions(content, patterns, syntheticDirectives, lab
   }
 }
 
+const workerBudgetContradictions = [
+  // A budget-setting verb is contradictory unless the same directive explicitly omits the budget.
+  /\b(?:set|add|give|assign|configure|pass)\b(?=[^\n.]{0,160}\b(?:turnBudget|turn budget)\b)(?![^\n.]{0,160}\b(?:without|omit|omitting|no|neither)\b)[^\n.]{0,160}\b(?:turnBudget|turn budget)\b/i,
+  /\b(?:launch|run|invoke|call|start)\b(?=[^\n.]{0,160}\bworkers?\b)(?=[^\n.]{0,160}\b(?:turnBudget|turn budget)\b)(?![^\n.]{0,160}\b(?:without|omit|omitting|no|neither)\b)[^\n.]{0,160}\b(?:turnBudget|turn budget)\b/i,
+  /\b(?:set|add|give|assign|configure|pass|launch|run|invoke|call|start)\b(?=[^\n.]{0,160}\bworkers?\b)(?=[^\n.]{0,160}\btoolBudget\b[^\n.]{0,80}\bhard\b|[^\n.]{0,160}\b(?:hard|count-based)\b[^\n.]{0,80}\b(?:toolBudget|tool budget)\b)(?![^\n.]{0,160}\b(?:without|omit|omitting|no|neither)\b)[^\n.]{0,240}/i,
+];
+
 function findNamedFiles(directory, fileName) {
   const matches = [];
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -351,9 +358,6 @@ test("skills reject contradictory workflow directives", () => {
     /\b(?:the )?worker(?:s)? (?:may|can|should|must) (?:stage|commit|push)\b/i,
     /\brun workers? in parallel\b/i,
     /\bautomatically (?:retry|replace)\b/i,
-    /\b(?:set|add|give|assign|configure|pass)\b[^\n.]{0,80}\b(?:worker|worker launch)\b[^\n.]{0,80}\b(?:turnBudget|turn budget)\b/i,
-    /\b(?:launch|run|invoke|call|start)\b[^\n.]{0,80}\bworkers?\b[^\n.]{0,80}\bwith\b[^\n.]{0,40}\b(?:turnBudget|turn budget)\b/i,
-    /\b(?:set|add|give|assign|configure|pass)\b[^\n.]{0,80}\b(?:worker|worker launch)\b[^\n.]{0,80}\b(?:hard|count-based)\b[^\n.]{0,30}\b(?:toolBudget|tool budget)\b/i,
   ], [
     "The worker may stage changes.",
     "The worker may commit changes.",
@@ -361,11 +365,28 @@ test("skills reject contradictory workflow directives", () => {
     "Run workers in parallel.",
     "Automatically retry failed workers.",
     "Automatically replace failed workers.",
+  ], "yt-work");
+
+  assertNoForbiddenPatterns(work, workerBudgetContradictions, "yt-work");
+  assertNoForbiddenPatterns(
+    `${work}\nConfigure the worker without a turnBudget.\n`,
+    workerBudgetContradictions,
+    "yt-work compliant budget omission",
+  );
+  for (const directive of [
     "Set the worker turnBudget to 40.",
     "Launch the worker with a turn budget of 40.",
     "Give the worker a hard toolBudget of 100.",
     "Configure the worker with a count-based tool budget.",
-  ], "yt-work");
+    "Launch the worker using { turnBudget: { maxTurns: 40 } }.",
+    "Launch the worker using { toolBudget: { hard: 100 } }.",
+  ]) {
+    assert.throws(
+      () => assertNoForbiddenPatterns(`${work}\n${directive}\n`, workerBudgetContradictions, "yt-work"),
+      { name: "AssertionError" },
+      `yt-work must reject contradictory budget directive: ${directive}`,
+    );
+  }
 
   const { content: review } = readSkill("yt-review");
   assertRejectsContradictions(review, [

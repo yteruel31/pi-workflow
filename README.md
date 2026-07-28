@@ -35,7 +35,7 @@ Use a skill naturally (for example, “brainstorm this feature with yt-brainstor
 | `yt-work` | `/skill:yt-work` | Implement a request or plan as sequential, validated, committed units. |
 | `yt-review` | `/skill:yt-review` | Review a patch, PR, branch, ref, or working tree and return one prioritized report. |
 
-Every skill, including `yt-dispatch`, is independently usable from a direct request. PRDs and plans are optional context, not workflow gates. Brainstorm and plan keep their result in the current session by default and create or update an artifact only after explicit approval. A brainstorm may suggest dispatch only for multiple immediately independent units; ordinary technical planning still suggests `yt-plan`. Suggestions are optional, and no skill starts the next command automatically.
+Every skill, including `yt-dispatch`, is independently usable from a direct request. PRDs and plans are optional context, not workflow gates. Brainstorm and plan keep their result in the current session by default and create or update an artifact only after explicit approval. Brainstorm and plan may suggest dispatch only for multiple immediately independent units that would benefit from separate visible sessions; otherwise brainstorm suggests `yt-plan` and plan suggests `yt-work`. Suggestions are optional, and no skill starts the next command automatically.
 
 ## Bounded delegation
 

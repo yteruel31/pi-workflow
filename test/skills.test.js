@@ -264,7 +264,9 @@ test("README documents dispatch behavior, prerequisites, and its fallback except
     /distinct, visible Herdr tabs/i,
     /maximum of five/i,
     /one global confirmation/i,
-    /immediately independent units/i,
+    /Brainstorm and plan may suggest dispatch only for multiple immediately independent units that would benefit from separate visible sessions/i,
+    /otherwise brainstorm suggests `yt-plan` and plan suggests `yt-work`/i,
+    /Suggestions are optional, and no skill starts the next command automatically/i,
     /Read-only units use the current project cwd/i,
     /implementation units require Git.*separate branches and worktrees/is,
     /auto-start with no focus/i,
@@ -440,9 +442,21 @@ test("yt-plan produces executable planning without implementing", () => {
     /Risks and Blockers/i,
     /docs\/plans\/YYYY-MM-DD-<slug>-plan\.md/,
     /Do not edit application code, run migrations, stage files, or create commits\./,
-    /suggesting `\/skill:yt-work/i,
-    /Never invoke the next skill automatically\./,
   ], "yt-plan");
+});
+
+test("yt-plan conditionally suggests dispatch with yt-work as its optional fallback", () => {
+  const { content } = readSkill("yt-plan");
+
+  assertMatches(content, [
+    /completed plan contains multiple immediately independent units/i,
+    /benefit from separate visible sessions/i,
+    /optionally suggest `\/skill:yt-dispatch <request-or-plan-path>`/i,
+    /Otherwise, end by suggesting `\/skill:yt-work <request-or-plan-path>`/i,
+    /Dispatch is never mandatory/i,
+    /Never invoke either skill automatically/i,
+  ], "yt-plan completion");
+  assert.doesNotMatch(content, /^End by suggesting `\/skill:yt-work <request-or-plan-path>`\./m);
 });
 
 test("yt-dispatch has minimal frontmatter and accepts direct or optional artifact input", () => {

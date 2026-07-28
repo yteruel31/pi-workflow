@@ -52,6 +52,7 @@ The package intentionally replaces heavier workflow systems with a simple cycle:
 
 - Require a Git repository because each passing unit receives an atomic commit.
 - Run exactly one fresh `worker` per implementation unit, strictly sequentially.
+- Omit `turnBudget` and hard/count-based `toolBudget` for mutation-capable workers; bounded unit packets define scope, and an outer `timeoutMs` is only a wall-clock fail-safe.
 - The parent validates repository state, diff scope, and checks before committing.
 - Workers must never stage, commit, push, modify planning artifacts, or spawn subagents.
 - Stop on failed validation or contract violations. Do not retry, replace workers, or start correction loops automatically.

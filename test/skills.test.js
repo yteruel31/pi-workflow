@@ -243,6 +243,8 @@ test("README documents installation, all commands, fallback, commits, and report
     /optional enrichment.*not installed transitively/is,
     /graceful inline fallback/i,
     /one fresh `worker` per implementation unit, strictly sequentially/i,
+    /Mutation-capable workers receive neither a `turnBudget` nor a hard\/count-based `toolBudget`/i,
+    /generous outer `timeoutMs`.*only as a wall-clock fail-safe/i,
     /one atomic commit for each passing unit/i,
     /does not push or open a pull request automatically/i,
     /`yt-review` is report-only/i,
@@ -299,6 +301,8 @@ test("CLAUDE documents the five-skill dispatch contract and layout", () => {
     /dispatch is excluded and has no hidden fallback/i,
     /yt-dispatch\/SKILL\.md/,
     /yt-dispatch\/scripts\/spawn\.sh\s+# executable/,
+    /Omit `turnBudget` and hard\/count-based `toolBudget` for mutation-capable workers/i,
+    /outer `timeoutMs` is only a wall-clock fail-safe/i,
     /Do not tag, publish, push, or open a pull request unless the user asks/i,
   ], "CLAUDE dispatch guidance");
   assert.doesNotMatch(guidance, /exactly four/i);
@@ -347,6 +351,9 @@ test("skills reject contradictory workflow directives", () => {
     /\b(?:the )?worker(?:s)? (?:may|can|should|must) (?:stage|commit|push)\b/i,
     /\brun workers? in parallel\b/i,
     /\bautomatically (?:retry|replace)\b/i,
+    /\b(?:set|add|give|assign|configure|pass)\b[^\n.]{0,80}\b(?:worker|worker launch)\b[^\n.]{0,80}\b(?:turnBudget|turn budget)\b/i,
+    /\b(?:launch|run|invoke|call|start)\b[^\n.]{0,80}\bworkers?\b[^\n.]{0,80}\bwith\b[^\n.]{0,40}\b(?:turnBudget|turn budget)\b/i,
+    /\b(?:set|add|give|assign|configure|pass)\b[^\n.]{0,80}\b(?:worker|worker launch)\b[^\n.]{0,80}\b(?:hard|count-based)\b[^\n.]{0,30}\b(?:toolBudget|tool budget)\b/i,
   ], [
     "The worker may stage changes.",
     "The worker may commit changes.",
@@ -354,6 +361,10 @@ test("skills reject contradictory workflow directives", () => {
     "Run workers in parallel.",
     "Automatically retry failed workers.",
     "Automatically replace failed workers.",
+    "Set the worker turnBudget to 40.",
+    "Launch the worker with a turn budget of 40.",
+    "Give the worker a hard toolBudget of 100.",
+    "Configure the worker with a count-based tool budget.",
   ], "yt-work");
 
   const { content: review } = readSkill("yt-review");
@@ -923,6 +934,10 @@ test("yt-work uses exactly one sequential artifact-free worker per unit", () => 
     /`async: false`/,
     /`output: false`/,
     /`artifacts: false`/,
+    /mutation-capable worker, omit `turnBudget` and omit any hard or count-based `toolBudget`/i,
+    /Turn and tool counts are not safe delivery boundaries/i,
+    /expire after implementation and checks complete, misclassifying completed work as a partial run/i,
+    /generous outer `timeoutMs`.*wall-clock fail-safe.*never as a mutation-safe completion or checkpoint boundary/i,
     /bounded unit packet rather than the whole plan/i,
     /sole writer while active/i,
     /must not stage, commit, push, modify the PRD or plan, or spawn subagents/i,

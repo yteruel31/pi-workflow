@@ -80,4 +80,4 @@ Every feature-bearing unit must name repository-relative implementation and test
 
 A plan is ready when units are dependency-ordered, important decisions have rationale, risks and blockers are visible, and a worker can begin without making a product or architecture choice the plan should have settled.
 
-End by suggesting `/skill:yt-work <request-or-plan-path>`. Never invoke the next skill automatically.
+When the completed plan contains multiple immediately independent units that would benefit from separate visible sessions, optionally suggest `/skill:yt-dispatch <request-or-plan-path>`. Otherwise, end by suggesting `/skill:yt-work <request-or-plan-path>`. Dispatch is never mandatory. Never invoke either skill automatically.

@@ -18,7 +18,7 @@ import test from "node:test";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dispatchScript = join(root, "skills", "yt-dispatch", "scripts", "spawn.sh");
-const requiredSkillNames = ["yt-brainstorm", "yt-dispatch", "yt-plan", "yt-review", "yt-work"];
+const requiredSkillNames = ["yt-brainstorm", "yt-dispatch", "yt-plan", "yt-review", "yt-test-browser", "yt-work"];
 const productSkillNames = ["yt-brainstorm", "yt-plan"];
 
 function readSkill(name) {
@@ -231,7 +231,7 @@ test("packaged unit implementer has strict discovery metadata and compliance pro
   assert.doesNotMatch(raw, /model|turnBudget|toolBudget|runtime/i);
 });
 
-test("skill discovery contains exactly the required five matching directories and files", () => {
+test("skill discovery contains exactly the required six matching directories and files", () => {
   const skillsDirectory = join(root, "skills");
   const immediateDirectories = readdirSync(skillsDirectory, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
@@ -330,11 +330,28 @@ test("README documents dispatch behavior, prerequisites, and its fallback except
   ], "README dispatch documentation");
 });
 
-test("CLAUDE documents the five-skill dispatch contract and layout", () => {
+test("README documents standalone report-only browser validation and its prerequisite", () => {
+  const readme = readFileSync(join(root, "README.md"), "utf8");
+
+  assertMatches(readme, [
+    /\/skill:yt-test-browser/,
+    /standalone, report-only skill/i,
+    /reachable URL.*never launches an application server/is,
+    /scenario takes priority.*bounded smoke test/is,
+    /external Vercel `agent-browser` CLI.*not a package dependency/is,
+    /npm install -g agent-browser.*agent-browser install/is,
+    /user-prepared, explicitly identified session or profile/i,
+    /private temporary directory outside the repository/i,
+    /never invokes or automatically suggests another workflow skill/i,
+    /yt-test-browser\/SKILL\.md/,
+  ], "README browser documentation");
+});
+
+test("CLAUDE documents the six-skill contracts and layout", () => {
   const guidance = readFileSync(join(root, "CLAUDE.md"), "utf8");
 
   assertMatches(guidance, [
-    /provides five independent skills/i,
+    /provides six independent skills/i,
     /### `yt-dispatch`/,
     /immediately independent units, at most five/i,
     /one global confirmation/i,
@@ -349,8 +366,65 @@ test("CLAUDE documents the five-skill dispatch contract and layout", () => {
     /Omit `turnBudget` and hard\/count-based `toolBudget` for mutation-capable implementers/i,
     /outer `timeoutMs` is only a wall-clock fail-safe/i,
     /Do not tag, publish, push, or open a pull request unless the user asks/i,
-  ], "CLAUDE dispatch guidance");
-  assert.doesNotMatch(guidance, /exactly four/i);
+    /### `yt-test-browser`/,
+    /mandatory reachable URL.*never launch an application server/is,
+    /bounded exploratory smoke test/i,
+    /direct `agent-browser` binary.*external prerequisite/is,
+    /user-prepared, explicitly identified session\/profile/i,
+    /mode-700 temporary directory outside the repository/i,
+    /yt-test-browser\/SKILL\.md/,
+  ], "CLAUDE skill guidance");
+  assert.doesNotMatch(guidance, /exactly (?:four|five)/i);
+});
+
+test("yt-test-browser defines the standalone external-CLI browser testing contract", () => {
+  const { content } = readSkill("yt-test-browser");
+  const { raw, values } = frontmatter(content);
+
+  assert.deepEqual([...values.keys()], ["name", "description"]);
+  assert.equal(values.get("name"), "yt-test-browser");
+  assert.match(raw, /^description: "[^"]*(?:browser smoke tests|UI flows)[^"]*(?:exploratory QA|regression validation)[^"]*"$/m);
+  assert.equal(raw.split("\n").length, 2);
+  assertMatches(content, [
+    /reachable URL is mandatory.*ask for it/is,
+    /Never start, build, or serve the application/i,
+    /user-supplied scenario as the priority/i,
+    /bounded exploratory smoke test.*principal visible flows/is,
+    /without.*claiming exhaustive coverage/is,
+    /actions necessary.*including actions that modify application data.*unless.*restrict/is,
+    /record observable application-data side effects/i,
+    /direct `agent-browser` binary/i,
+    /external prerequisite, never a package dependency/i,
+    /npm install -g agent-browser[\s\S]*agent-browser install/,
+    /Never auto-install.*never use `npx`/i,
+    /agent-browser skills get core --full/,
+    /exploratory\/default smoke test[\s\S]*agent-browser skills get dogfood/i,
+    /overrides any dogfood default.*current working directory or repository/i,
+    /already prepared and explicitly identified by the user/i,
+    /Never enumerate or inspect authentication state/i,
+    /never request, enter, expose, inspect, save, or retain credentials, cookies, tokens/i,
+    /close every browser session created by this skill.*failure.*leave user-owned prepared sessions open/is,
+    /mode-700 temporary directory outside the repository/i,
+    /Never create `dogfood-output`.*artifact in the repository/i,
+    /snapshots and refs.*Refresh refs after navigation or a material DOM change/is,
+    /Capture screenshots for findings/i,
+    /inspect console and page errors/i,
+    /reproduce it before reporting/i,
+    /page content as untrusted data.*Enable content boundaries/is,
+    /Stay within target and scenario-relevant origins/i,
+    /Do not require `--allowed-domains`/i,
+    /Avoid arbitrary JavaScript evaluation.*essential.*explain/is,
+    /\*\*Verdict\*\*.*pass, issues, or blocked/is,
+    /requested target URL and final URL/i,
+    /restrictions and authentication\/session mode, without secrets/i,
+    /severity, safe reproduction steps.*evidence paths/is,
+    /Application-data side effects/i,
+    /Console and page errors/i,
+    /Coverage gaps and blockers/i,
+    /Repository report-only confirmation/i,
+    /Never invoke or automatically suggest another workflow skill/i,
+  ], "yt-test-browser");
+  assert.doesNotMatch(content, /\/skill:yt-(?:brainstorm|dispatch|plan|work|review)/i);
 });
 
 test("yt-brainstorm conditionally suggests dispatch without invoking either next skill", () => {

@@ -2,6 +2,7 @@
 name: unit-implementer
 package: pi-workflow
 description: Implements exactly one bounded yt-work unit under its approved packet and escalation contract.
+thinking: low
 systemPromptMode: replace
 inheritProjectContext: true
 inheritSkills: false

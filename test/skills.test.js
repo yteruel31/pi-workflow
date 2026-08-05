@@ -201,11 +201,12 @@ test("packaged unit implementer has strict discovery metadata and compliance pro
   const { raw, values } = frontmatter(content);
 
   assert.deepEqual([...values.keys()], [
-    "name", "package", "description", "systemPromptMode", "inheritProjectContext",
-    "inheritSkills", "tools", "defaultContext", "acceptanceRole",
+    "name", "package", "description", "thinking", "systemPromptMode",
+    "inheritProjectContext", "inheritSkills", "tools", "defaultContext", "acceptanceRole",
   ]);
   assert.equal(values.get("name"), "unit-implementer");
   assert.equal(values.get("package"), "pi-workflow");
+  assert.equal(values.get("thinking"), "low");
   assert.equal(values.get("systemPromptMode"), "replace");
   assert.equal(values.get("inheritProjectContext"), "true");
   assert.equal(values.get("inheritSkills"), "false");

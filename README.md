@@ -34,8 +34,9 @@ Use a skill naturally (for example, “brainstorm this feature with yt-brainstor
 | `yt-plan` | `/skill:yt-plan` | Turn a direct request, optional PRD, or existing plan into ordered implementation units. |
 | `yt-work` | `/skill:yt-work` | Implement a request or plan as sequential, validated, committed units. |
 | `yt-review` | `/skill:yt-review` | Review a patch, PR, branch, ref, or working tree and return one prioritized report. |
+| `yt-test-browser` | `/skill:yt-test-browser` | Run a scenario or bounded exploratory browser smoke test against an already reachable web application. |
 
-Every skill, including `yt-dispatch`, is independently usable from a direct request. PRDs and plans are optional context, not workflow gates. Brainstorm and plan keep their result in the current session by default and create or update an artifact only after explicit approval. Brainstorm and plan may suggest dispatch only for multiple immediately independent units that would benefit from separate visible sessions; otherwise brainstorm suggests `yt-plan` and plan suggests `yt-work`. Suggestions are optional, and no skill starts the next command automatically.
+Every skill, including `yt-dispatch` and `yt-test-browser`, is independently usable from a direct request. PRDs and plans are optional context, not workflow gates. Brainstorm and plan keep their result in the current session by default and create or update an artifact only after explicit approval. Brainstorm and plan may suggest dispatch only for multiple immediately independent units that would benefit from separate visible sessions; otherwise brainstorm suggests `yt-plan` and plan suggests `yt-work`. Suggestions are optional, and no skill starts the next command automatically.
 
 ## Bounded delegation
 
@@ -60,6 +61,12 @@ Without the extension, brainstorm, plan, work, and review have a graceful inline
 After confirmation, independent Pi sessions auto-start with no focus. The originating session is dispatcher-only: it returns the tab/session mapping and does not monitor, collect, merge, or clean up their work. On the first partial failure it stops launching later units and preserves every tab, branch, and worktree already created. There is no automatic fallback.
 
 Dispatch requires external commands `herdr`, `pi`, and `python3`; implementation dispatch additionally requires `git`. These tools are prerequisites, not package dependencies.
+
+## Standalone browser validation
+
+`yt-test-browser` is a standalone, report-only skill for UI flows, smoke testing, exploratory QA, and regression validation. It requires a reachable URL and never launches an application server or substitutes source inspection for browser testing. A supplied scenario takes priority; otherwise it performs a bounded smoke test of principal visible flows without claiming exhaustive coverage. Necessary application actions may change application data unless the user restricts them, and the report records observable side effects.
+
+The skill requires the external Vercel `agent-browser` CLI, which is not a package dependency. Install it separately with `npm install -g agent-browser` followed by `agent-browser install`; the skill checks the direct binary and never auto-installs it or falls back to `npx`. Authentication may use only a user-prepared, explicitly identified session or profile; the skill never handles credentials, cookies, or tokens. Evidence is retained only in a private temporary directory outside the repository, and the session report includes findings, reproduction evidence, console/page errors, coverage gaps, and report-only confirmation. It never invokes or automatically suggests another workflow skill.
 
 ## Safety behavior
 
@@ -88,6 +95,7 @@ skills/
   yt-plan/SKILL.md
   yt-work/SKILL.md
   yt-review/SKILL.md
+  yt-test-browser/SKILL.md
 test/skills.test.js
 docs/plans/
 docs/validation/

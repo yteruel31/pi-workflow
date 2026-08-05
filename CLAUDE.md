@@ -2,13 +2,14 @@
 
 ## Repository purpose
 
-`pi-workflow` is a small, public workflow package built specifically for the Pi coding agent. It provides five independent skills:
+`pi-workflow` is a small, public workflow package built specifically for the Pi coding agent. It provides six independent skills:
 
 - `yt-brainstorm` — clarify a product idea without implementing it;
 - `yt-dispatch` — launch independent units in separate visible Herdr Pi sessions;
 - `yt-plan` — turn a request into an implementation-ready plan;
 - `yt-work` — implement sequential units with one parent-owned commit per passing unit;
-- `yt-review` — perform an adaptive, report-only review with one to three reviewers.
+- `yt-review` — perform an adaptive, report-only review with one to three reviewers;
+- `yt-test-browser` — validate an already reachable web application through `agent-browser` and return an evidence-rich report.
 
 The package intentionally replaces heavier workflow systems with a simple cycle: brainstorm → plan → work → review, with dispatch available when independent work benefits from separate visible sessions. The order is suggested, never mandatory.
 
@@ -59,6 +60,14 @@ The package intentionally replaces heavier workflow systems with a simple cycle:
 - Stop on failed validation or contract violations. Do not retry, replace workers, or start correction loops automatically.
 - Never push or open a pull request unless separately requested.
 
+### `yt-test-browser`
+
+- Operate standalone from a mandatory reachable URL; never launch an application server or automatically hand off to another workflow skill.
+- Prioritize a supplied scenario; otherwise run a bounded exploratory smoke test of principal visible flows without claiming exhaustive coverage.
+- Treat the direct `agent-browser` binary as an external prerequisite, not a package dependency; stop clearly when it, the URL, or required prepared authentication is unavailable.
+- Reuse only a user-prepared, explicitly identified session/profile without handling secrets, and close only skill-owned sessions.
+- Keep screenshots and evidence in a mode-700 temporary directory outside the repository and return an evidence-rich session report without repository runtime changes.
+
 ### `yt-review`
 
 - Accept patches, PRs, branches or refs, and working-tree targets.
@@ -80,6 +89,7 @@ skills/
   yt-plan/SKILL.md
   yt-work/SKILL.md
   yt-review/SKILL.md
+  yt-test-browser/SKILL.md
 test/skills.test.js
 docs/plans/
 docs/validation/

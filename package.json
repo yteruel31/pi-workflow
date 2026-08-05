@@ -18,7 +18,12 @@
   "pi": {
     "skills": [
       "./skills"
-    ]
+    ],
+    "subagents": {
+      "agents": [
+        "./agents"
+      ]
+    }
   },
   "scripts": {
     "test": "node --test"

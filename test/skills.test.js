@@ -183,13 +183,51 @@ function launch(harness, args) {
   return run(dispatchScript, args, { env: harness.env });
 }
 
-test("package manifest exposes only the native skills directory", () => {
+test("package manifest exposes skills and exactly one packaged agent directory", () => {
   const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 
   assert.equal(manifest.private, true);
   assert.equal(manifest.version, "0.2.0");
-  assert.deepEqual(manifest.pi, { skills: ["./skills"] });
+  assert.deepEqual(manifest.pi, {
+    skills: ["./skills"],
+    subagents: { agents: ["./agents"] },
+  });
   assert.equal(manifest.dependencies, undefined);
+  assert.deepEqual(readdirSync(join(root, "agents")), ["unit-implementer.md"]);
+});
+
+test("packaged unit implementer has strict discovery metadata and compliance prompt", () => {
+  const content = readFileSync(join(root, "agents", "unit-implementer.md"), "utf8");
+  const { raw, values } = frontmatter(content);
+
+  assert.deepEqual([...values.keys()], [
+    "name", "package", "description", "systemPromptMode", "inheritProjectContext",
+    "inheritSkills", "tools", "defaultContext", "acceptanceRole",
+  ]);
+  assert.equal(values.get("name"), "unit-implementer");
+  assert.equal(values.get("package"), "pi-workflow");
+  assert.equal(values.get("systemPromptMode"), "replace");
+  assert.equal(values.get("inheritProjectContext"), "true");
+  assert.equal(values.get("inheritSkills"), "false");
+  assert.equal(values.get("defaultContext"), "fresh");
+  assert.equal(values.get("acceptanceRole"), "writer");
+  assert.equal(values.get("tools"), "read, grep, find, ls, bash, edit, write, contact_supervisor");
+  for (const forbidden of ["model", "turnBudget", "toolBudget", "dependencies"]) assert.equal(values.has(forbidden), false);
+  assertMatches(content, [
+    /exactly one bounded, approved yt-work unit/i,
+    /current explicit unit packet and corrections.*artifact explicitly supplied.*repository context/is,
+    /private compliance checklist/i,
+    /Exact planned paths and artifact boundaries are mandatory unless.*optional/i,
+    /test discovery patterns/i,
+    /Do not silently rename a path, consolidate or split planned artifacts, substitute an architecture, skip a required check, widen scope/i,
+    /contact_supervisor.*reason: "need_decision".*wait/is,
+    /unavailable.*stop.*blocked/is,
+    /Never stage, commit, or push; mutate Git refs, remotes, or configuration; modify a plan or PRD; or spawn subagents/i,
+    /Distinguish failures that already existed.*baseline/is,
+    /exact changed paths/i,
+    /nothing was staged, committed, or pushed/i,
+  ], "unit implementer");
+  assert.doesNotMatch(raw, /model|turnBudget|toolBudget|runtime/i);
 });
 
 test("skill discovery contains exactly the required five matching directories and files", () => {
@@ -212,9 +250,8 @@ test("skill discovery contains exactly the required five matching directories an
   }
 });
 
-test("repository ships no custom-agent, cross-harness, or marketplace surfaces", () => {
+test("repository ships no extra cross-harness or marketplace surfaces", () => {
   const forbiddenRootEntries = [
-    "agents",
     "commands",
     "extensions",
     "prompts",
@@ -249,8 +286,8 @@ test("README documents installation, all commands, fallback, commits, and report
     /pi install npm:pi-subagents/,
     /optional enrichment.*not installed transitively/is,
     /graceful inline fallback/i,
-    /one fresh `worker` per implementation unit, strictly sequentially/i,
-    /Mutation-capable workers receive neither a `turnBudget` nor a hard\/count-based `toolBudget`/i,
+    /one fresh packaged `pi-workflow\.unit-implementer` per implementation unit, strictly sequentially/i,
+    /Mutation-capable implementers receive neither a `turnBudget` nor a hard\/count-based `toolBudget`/i,
     /generous outer `timeoutMs`.*only as a wall-clock fail-safe/i,
     /one atomic commit for each passing unit/i,
     /does not push or open a pull request automatically/i,
@@ -288,7 +325,7 @@ test("README documents dispatch behavior, prerequisites, and its fallback except
     /yt-dispatch\/SKILL\.md/,
     /yt-dispatch\/scripts\/spawn\.sh\s+# executable/,
     /Pi-only/i,
-    /no custom agents, commands, extensions, converters, or cross-harness compatibility layer/i,
+    /no commands, extensions, converters, or cross-harness compatibility layer/i,
   ], "README dispatch documentation");
 });
 
@@ -308,7 +345,7 @@ test("CLAUDE documents the five-skill dispatch contract and layout", () => {
     /dispatch is excluded and has no hidden fallback/i,
     /yt-dispatch\/SKILL\.md/,
     /yt-dispatch\/scripts\/spawn\.sh\s+# executable/,
-    /Omit `turnBudget` and hard\/count-based `toolBudget` for mutation-capable workers/i,
+    /Omit `turnBudget` and hard\/count-based `toolBudget` for mutation-capable implementers/i,
     /outer `timeoutMs` is only a wall-clock fail-safe/i,
     /Do not tag, publish, push, or open a pull request unless the user asks/i,
   ], "CLAUDE dispatch guidance");
@@ -943,27 +980,29 @@ test("yt-work enforces Git and foreign-change preflight", () => {
   ], "yt-work");
 });
 
-test("yt-work uses exactly one sequential artifact-free worker per unit", () => {
+test("yt-work uses exactly one sequential artifact-free packaged implementer per unit", () => {
   const { content } = readSkill("yt-work");
   assertMatches(content, [
     /Inspect the available roles before delegation/i,
-    /exactly one fresh native `worker`, strictly sequentially/i,
-    /next worker may start only after the parent has validated and committed/i,
+    /select exactly the packaged runtime agent `pi-workflow\.unit-implementer`/i,
+    /never select the generic builtin `worker` as a fallback/i,
+    /exactly one fresh implementer, strictly sequentially/i,
+    /next implementer may start only after the parent has validated and committed/i,
     /per-unit Git metadata snapshot/i,
     /Use a fresh context and foreground execution with inline returns/i,
     /`context: "fresh"`/,
     /`async: false`/,
     /`output: false`/,
     /`artifacts: false`/,
-    /mutation-capable worker, omit `turnBudget` and omit any hard or count-based `toolBudget`/i,
+    /mutation-capable implementer, omit `turnBudget` and omit any hard or count-based `toolBudget`/i,
     /Turn and tool counts are not safe delivery boundaries/i,
     /expire after implementation and checks complete, misclassifying completed work as a partial run/i,
     /generous outer `timeoutMs`.*wall-clock fail-safe.*never as a mutation-safe completion or checkpoint boundary/i,
     /bounded unit packet rather than the whole plan/i,
     /sole writer while active/i,
-    /must not stage, commit, push, modify the PRD or plan, or spawn subagents/i,
+    /must not stage, commit, push, mutate refs, remotes, or Git configuration, modify the PRD or plan, or spawn subagents/i,
     /parent must not write concurrently/i,
-    /Do not use chains, parallel workers, background runs, retries, resume, replacement workers, review loops, or management actions\./,
+    /Do not use chains, parallel implementers, background runs, retries, resume, replacement implementers, review loops, or management actions\./,
   ], "yt-work");
 });
 
@@ -971,7 +1010,7 @@ test("yt-work leaves validation and atomic commits to the parent", () => {
   const { content } = readSkill("yt-work");
   assertMatches(content, [
     /first compare `HEAD`, branch, the complete staged\/index state, local refs, and redacted remote configuration exactly with the per-unit snapshot/i,
-    /metadata delta as a worker contract violation and stop without rewriting history, retrying, replacing the worker, or committing/i,
+    /metadata delta as an implementer contract violation and stop without rewriting history, retrying, replacing the implementer, or committing/i,
     /remote-only effect.*trust boundary/is,
     /inspect actual status and diff against the unit packet and preflight baseline/i,
     /confirm no pre-existing change was absorbed/i,
@@ -986,13 +1025,14 @@ test("yt-work leaves validation and atomic commits to the parent", () => {
   ], "yt-work");
 });
 
-test("yt-work stops failed units without loops and has an inline fallback", () => {
+test("yt-work stops failed units without loops and has only an inline fallback", () => {
   const { content } = readSkill("yt-work");
   assertMatches(content, [
-    /failed or partial worker.*remains uncommitted and stops/is,
+    /failed or partial implementer.*remains uncommitted and stops/is,
     /Launch no automatic retry or replacement/i,
     /Report the unit, changed files, checks and results, failure, and next user-controlled action/i,
-    /worker` role or subagent tool is unavailable.*parent may implement/is,
+    /subagent tool or `pi-workflow\.unit-implementer` is unavailable.*parent implements/is,
+    /Never fall back to the generic builtin `worker`/i,
     /Disclose the skipped delegation/i,
     /After all units pass, summarize unit-to-commit mapping, verification, deviations, skipped delegation, and residual risks/i,
     /Suggest `\/skill:yt-review/i,

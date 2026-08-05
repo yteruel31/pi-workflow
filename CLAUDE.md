@@ -14,12 +14,12 @@ The package intentionally replaces heavier workflow systems with a simple cycle:
 
 ## Core product constraints
 
-- Keep the repository Pi-native. Do not add Claude Code commands, custom agents, converters, marketplace infrastructure, or multi-harness compatibility layers.
+- Keep the repository Pi-native. Apart from the single packaged `pi-workflow.unit-implementer`, do not add Claude Code commands, custom agents, converters, marketplace infrastructure, or multi-harness compatibility layers.
 - Every skill must accept a direct request. A PRD, plan, or previous workflow stage is always optional.
 - Explicit user instructions take precedence over supplied artifacts; supplied artifacts take precedence over auto-discovered context.
 - Skills may suggest a next step but must never invoke it automatically.
 - Session output is the default. Create or update artifacts only when explicitly requested.
-- `pi-subagents` is optional and is not installed transitively. Brainstorm, plan, work, and review preserve a graceful parent-session fallback; dispatch is excluded and has no hidden fallback.
+- `pi-subagents` is optional and is not installed transitively. Brainstorm, plan, work, and review preserve a graceful parent-session fallback; work never falls back to the generic builtin `worker`, and dispatch is excluded and has no hidden fallback.
 - Keep the package dependency-free unless a dependency is clearly necessary and explicitly approved.
 
 ## Skill contracts
@@ -51,10 +51,11 @@ The package intentionally replaces heavier workflow systems with a simple cycle:
 ### `yt-work`
 
 - Require a Git repository because each passing unit receives an atomic commit.
-- Run exactly one fresh `worker` per implementation unit, strictly sequentially.
-- Omit `turnBudget` and hard/count-based `toolBudget` for mutation-capable workers; bounded unit packets define scope, and an outer `timeoutMs` is only a wall-clock fail-safe.
+- Run exactly one fresh packaged `pi-workflow.unit-implementer` per implementation unit, strictly sequentially; if it or the subagent tool is unavailable, implement inline and never use the generic builtin `worker`.
+- Each packet carries the explicit-request/artifact/repository authority order, a private compliance-checklist requirement, exact path and artifact boundaries, repository-pattern and test-discovery validation, and escalation before any deviation.
+- Omit `turnBudget` and hard/count-based `toolBudget` for mutation-capable implementers; bounded unit packets define scope, and an outer `timeoutMs` is only a wall-clock fail-safe.
 - The parent validates repository state, diff scope, and checks before committing.
-- Workers must never stage, commit, push, modify planning artifacts, or spawn subagents.
+- The implementer must never stage, commit, push, mutate refs/remotes/config, modify planning artifacts, or spawn subagents.
 - Stop on failed validation or contract violations. Do not retry, replace workers, or start correction loops automatically.
 - Never push or open a pull request unless separately requested.
 
@@ -70,6 +71,8 @@ The package intentionally replaces heavier workflow systems with a simple cycle:
 ## Repository layout
 
 ```text
+agents/
+  unit-implementer.md  # runtime name pi-workflow.unit-implementer
 skills/
   yt-brainstorm/SKILL.md
   yt-dispatch/SKILL.md
@@ -85,7 +88,7 @@ README.md
 LICENSE
 ```
 
-`package.json` exports only `./skills` through `pi.skills`. Each skill directory is self-contained and has a `SKILL.md` whose frontmatter contains only a matching `name` and a concise `description`.
+`package.json` exports `./skills` through `pi.skills` and exactly one agent directory through `pi.subagents.agents`. The optional `pi-subagents` extension discovers that agent; it remains non-transitive and there are no runtime dependencies. Each skill directory is self-contained and has a `SKILL.md` whose frontmatter contains only a matching `name` and a concise `description`.
 
 ## Change guidelines
 

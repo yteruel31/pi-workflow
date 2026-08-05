@@ -42,7 +42,7 @@ Every skill, including `yt-dispatch`, is independently usable from a direct requ
 When Pi's native subagent roles are available, the skills use a deliberately small delegation model:
 
 - **Brainstorm and plan:** optionally use at most one local `scout` and one external `researcher` when their evidence would materially improve the result.
-- **Work:** use exactly one fresh `worker` per implementation unit, strictly sequentially. Mutation-capable workers receive neither a `turnBudget` nor a hard/count-based `toolBudget`; bounded unit packets define scope, while a generous outer `timeoutMs` may serve only as a wall-clock fail-safe. The parent validates the diff and checks, then creates one atomic commit for each passing unit before starting the next.
+- **Work:** use exactly one fresh packaged `pi-workflow.unit-implementer` per implementation unit, strictly sequentially. The agent validates the packet against repository patterns, follows exact required paths and artifact boundaries, and escalates before any deviation. Mutation-capable implementers receive neither a `turnBudget` nor a hard/count-based `toolBudget`; bounded unit packets define scope, while a generous outer `timeoutMs` may serve only as a wall-clock fail-safe. The parent validates the diff and checks, then creates one atomic commit for each passing unit before starting the next.
 - **Review:** select one to three fresh `reviewer` roles from semantic complexity and synthesize one report-only result.
 
 [`pi-subagents`](https://www.npmjs.com/package/pi-subagents) is optional enrichment and is not installed transitively. To enable role delegation:
@@ -51,7 +51,7 @@ When Pi's native subagent roles are available, the skills use a deliberately sma
 pi install npm:pi-subagents
 ```
 
-Without the extension or a required role, brainstorm, plan, work, and review have a graceful inline fallback in the parent session and report reduced delegation or review confidence where relevant. `yt-dispatch` is explicitly excluded from this generic `pi-subagents` fallback: it has no hidden or inline fallback.
+Without the extension, brainstorm, plan, work, and review have a graceful inline fallback in the parent session and report reduced delegation or review confidence where relevant. Work also falls back inline when its packaged agent is unavailable and never routes an implementation unit to the generic builtin `worker`. `yt-dispatch` is explicitly excluded from this generic `pi-subagents` fallback: it has no hidden or inline fallback.
 
 ## Visible dispatch
 
@@ -63,7 +63,7 @@ Dispatch requires external commands `herdr`, `pi`, and `python3`; implementation
 
 ## Safety behavior
 
-`yt-work` requires a Git repository and performs a Git preflight before editing. It records existing changes, refuses to proceed with pre-existing staged changes, and blocks ambiguous overlap with foreign work. Workers never stage or commit: the parent stages only unit-owned changes, validates them, and owns the atomic commit. The skill does not push or open a pull request automatically.
+`yt-work` requires a Git repository and performs a Git preflight before editing. It records existing changes, refuses to proceed with pre-existing staged changes, and blocks ambiguous overlap with foreign work. The packaged implementer never stages or commits: the parent stages only unit-owned changes, validates them, and owns the atomic commit. The skill does not push or open a pull request automatically.
 
 `yt-review` is report-only. It compares observable local repository state before and after reviewers and, when safe read APIs are available, re-queries live remote refs and target-specific PR metadata on a best-effort basis. It prohibits local or remote mutation, never applies an autofix, and stops with a contract-violation report when compared evidence changes. Remote-only mutation that available tools cannot observe and configured role overrides remain trust boundaries; the report marks remote state unverified instead of claiming enforcement when evidence is unavailable.
 
@@ -79,6 +79,8 @@ npm pack --dry-run
 Repository layout:
 
 ```text
+agents/
+  unit-implementer.md  # packaged as pi-workflow.unit-implementer
 skills/
   yt-brainstorm/SKILL.md
   yt-dispatch/SKILL.md
@@ -92,6 +94,6 @@ docs/validation/
 package.json
 ```
 
-The package is exposed through `pi.skills: ["./skills"]`. It intentionally ships no custom agents, commands, extensions, converters, or cross-harness compatibility layer.
+The package exposes skills through `pi.skills: ["./skills"]` and its single dedicated agent through `pi.subagents.agents: ["./agents"]`. It ships no commands, extensions, converters, or cross-harness compatibility layer. Agent discovery requires the optional `pi-subagents` extension; the package retains no runtime dependencies and does not install `pi-subagents` transitively.
 
 Licensed under the [MIT License](LICENSE).

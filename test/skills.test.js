@@ -20,9 +20,27 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dispatchScript = join(root, "skills", "yt-dispatch", "scripts", "spawn.sh");
 const requiredSkillNames = ["yt-brainstorm", "yt-dispatch", "yt-plan", "yt-review", "yt-test-browser", "yt-work"];
 const productSkillNames = ["yt-brainstorm", "yt-plan"];
+const requiredAgentNames = [
+  "code-reviewer",
+  "code-security-reviewer",
+  "feasibility-reviewer",
+  "implementation-conformity-reviewer",
+  "learnings-researcher",
+  "plan-reviewer",
+  "repo-researcher",
+  "scope-guardian",
+  "security-reviewer",
+  "unit-implementer",
+];
+const readOnlyAgentNames = requiredAgentNames.filter((name) => name !== "unit-implementer");
 
 function readSkill(name) {
   const path = join(root, "skills", name, "SKILL.md");
+  return { path, content: readFileSync(path, "utf8") };
+}
+
+function readAgent(name) {
+  const path = join(root, "agents", `${name}.md`);
   return { path, content: readFileSync(path, "utf8") };
 }
 
@@ -183,7 +201,7 @@ function launch(harness, args) {
   return run(dispatchScript, args, { env: harness.env });
 }
 
-test("package manifest exposes skills and exactly one packaged agent directory", () => {
+test("package manifest exposes skills and exactly ten packaged agents", () => {
   const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 
   assert.equal(manifest.private, true);
@@ -193,7 +211,36 @@ test("package manifest exposes skills and exactly one packaged agent directory",
     subagents: { agents: ["./agents"] },
   });
   assert.equal(manifest.dependencies, undefined);
-  assert.deepEqual(readdirSync(join(root, "agents")), ["unit-implementer.md"]);
+  assert.deepEqual(
+    readdirSync(join(root, "agents")),
+    requiredAgentNames.map((name) => `${name}.md`),
+  );
+});
+
+test("packaged read-only agents have strict Pi discovery metadata and tool boundaries", () => {
+  for (const name of readOnlyAgentNames) {
+    const { content } = readAgent(name);
+    const { values } = frontmatter(content);
+    assert.deepEqual([...values.keys()], ["name", "description", "harness", "thinking", "tools"]);
+    assert.equal(values.get("name"), name);
+    assert.equal(values.get("harness"), "pi");
+    assert.equal(values.get("thinking"), "low");
+    assert.equal(values.get("tools"), "read, grep, find, ls");
+    assertMatches(content, [
+      /Stay read-only/i,
+      /never edit or write files/i,
+      /mutate Git or remote state/i,
+      /spawn subagents/i,
+    ], name);
+    assert.doesNotMatch(values.get("tools"), /bash|edit|write|contact_supervisor/i);
+  }
+
+  const learnings = readAgent("learnings-researcher").content;
+  assertMatches(learnings, [
+    /only local repository files/i,
+    /no web, session-history, persistent-memory, or external knowledge access/i,
+    /never claim that those sources were checked/i,
+  ], "learnings-researcher");
 });
 
 test("packaged unit implementer has strict discovery metadata and compliance prompt", () => {
@@ -273,7 +320,9 @@ test("README documents installation, all commands, fallback, commits, and report
   const readme = readFileSync(join(root, "README.md"), "utf8");
 
   assertMatches(readme, [
+    /pi install git:github\.com\/yteruel31\/pi-toolbox/,
     /pi install git:github\.com\/yteruel31\/pi-workflow/,
+    /Both packages are required/i,
     /Restart Pi/i,
     /pi update --extensions/,
     /existing tag or commit/i,
@@ -284,12 +333,15 @@ test("README documents installation, all commands, fallback, commits, and report
     /\/skill:yt-plan/,
     /\/skill:yt-work/,
     /\/skill:yt-review/,
-    /pi install npm:pi-subagents/,
-    /optional enrichment.*not installed transitively/is,
-    /graceful inline fallback/i,
-    /one fresh packaged `pi-workflow\.unit-implementer` per implementation unit, strictly sequentially/i,
-    /Mutation-capable implementers receive neither a `turnBudget` nor a hard\/count-based `toolBudget`/i,
-    /generous outer `timeoutMs`.*only as a wall-clock fail-safe/i,
+    /`pi-toolbox` v1\.16\.0 or newer supplies `subagent_agents`, `subagent_spawn`, and `subagent_wait`/i,
+    /Merge or install that provider release before this workflow change/i,
+    /enforces their `tools` frontmatter allowlists/i,
+    /provider must expose each profile's `tools` array in `subagent_agents`/i,
+    /user\/project overrides and incompatible provider versions are rejected/i,
+    /one fresh `unit-implementer` per implementation unit/i,
+    /unsupported timeout, turn-budget, and tool-budget parameters are never invented/i,
+    /nine research\/review profiles are technically restricted to `read`, `grep`, `find`, and `ls`/i,
+    /stops with a prerequisite or discovery error/i,
     /one atomic commit for each passing unit/i,
     /does not push or open a pull request automatically/i,
     /`yt-review` is report-only/i,
@@ -298,7 +350,7 @@ test("README documents installation, all commands, fallback, commits, and report
     /remote-only mutation.*configured role overrides.*trust boundaries/is,
     /marks remote state unverified/i,
     /never applies an autofix/i,
-    /no runtime dependencies/i,
+    /no npm runtime dependencies/i,
   ], "README");
 });
 
@@ -321,7 +373,7 @@ test("README documents dispatch behavior, prerequisites, and its fallback except
     /first partial failure.*stops launching.*preserves/is,
     /dirty source checkout.*warned/is,
     /`herdr`, `pi`, and `python3`.*additionally requires `git`/is,
-    /`yt-dispatch` is explicitly excluded.*generic `pi-subagents` fallback/is,
+    /`yt-dispatch` remains separate from `pi-toolbox` delegation/is,
     /no hidden or inline fallback/i,
     /yt-dispatch\/SKILL\.md/,
     /yt-dispatch\/scripts\/spawn\.sh\s+# executable/,
@@ -360,11 +412,12 @@ test("CLAUDE documents the six-skill contracts and layout", () => {
     /dispatcher.*do not monitor/is,
     /`herdr`, `pi`, and `python3`, plus `git`/i,
     /first partial failure.*preserve/is,
-    /dispatch is excluded and has no hidden fallback/i,
+    /`pi-toolbox` v1\.16\.0 or newer.*release must land before this workflow change/is,
+    /dispatch remains separate and has no hidden fallback/i,
     /yt-dispatch\/SKILL\.md/,
     /yt-dispatch\/scripts\/spawn\.sh\s+# executable/,
-    /Omit `turnBudget` and hard\/count-based `toolBudget` for mutation-capable implementers/i,
-    /outer `timeoutMs` is only a wall-clock fail-safe/i,
+    /Do not invent unsupported timeout, turn-budget, tool-budget, context, output, or artifact parameters/i,
+    /exactly ten profiles/i,
     /Do not tag, publish, push, or open a pull request unless the user asks/i,
     /### `yt-test-browser`/,
     /mandatory reachable URL.*never launch an application server/is,
@@ -540,23 +593,39 @@ test("brainstorm and plan keep artifacts optional and ask one question at a time
   }
 });
 
-test("brainstorm and plan delegation is fresh, bounded, foreground, and artifact-free", () => {
+test("brainstorm and plan use bounded packaged research agents through pi-toolbox", () => {
   for (const name of productSkillNames) {
     const { content } = readSkill(name);
     assertMatches(content, [
-      /inspect the available roles/i,
-      /at most one fresh `scout`/i,
-      /at most one fresh `researcher`/i,
-      /one bounded parallel call/i,
-      /foreground execution with inline returns/i,
-      /`async: false`/,
-      /`output: false`/,
-      /`artifacts: false`/,
-      /not spawn subagents/i,
-      /Do not use chains, saved workflows, background runs, retries, resume, management actions, or additional agents\./,
-      /continue inline when safe/i,
+      /inspect (?:the )?available profiles with `subagent_agents`/i,
+      /at most one fresh `repo-researcher`/i,
+      /at most one fresh `learnings-researcher`/i,
+      /local-only/i,
+      /`source: "package"`, `package: "pi-workflow"`/i,
+      /exact tool list `read, grep, find, ls`/i,
+      /higher-precedence override, missing `tools` metadata, or any mismatch/i,
+      /`subagent_spawn`/,
+      /trusted (?:current )?repository(?: as)? `working_dir`/i,
+      /one `subagent_wait` call/i,
+      /Do not use chains, retries, resume, replacement agents, or management actions/i,
+      /`pi-toolbox`.*package prerequisite/is,
+      /stop with the prerequisite or discovery failure/i,
     ], name);
+    assert.doesNotMatch(content, /`scout`|`researcher`|async: false|output: false|artifacts: false/i);
   }
+});
+
+test("yt-plan reviews drafts with one mandatory and up to three adaptive profiles", () => {
+  const { content } = readSkill("yt-plan");
+  assertMatches(content, [
+    /always run one fresh `plan-reviewer`/i,
+    /`scope-guardian`.*scope expansion/is,
+    /`feasibility-reviewer`.*cross-module/is,
+    /`security-reviewer`.*auth/is,
+    /at most four active runs/i,
+    /one `subagent_wait` call for all review run IDs/i,
+    /disclose skipped adaptive roles with a reason/i,
+  ], "yt-plan specialized review");
 });
 
 test("yt-brainstorm stays product-only and offers an optional PRD", () => {
@@ -1055,30 +1124,31 @@ test("yt-work enforces Git and foreign-change preflight", () => {
   ], "yt-work");
 });
 
-test("yt-work uses exactly one sequential artifact-free packaged implementer per unit", () => {
+test("yt-work uses exactly one sequential packaged unit-implementer run per unit", () => {
   const { content } = readSkill("yt-work");
   assertMatches(content, [
-    /Inspect the available roles before delegation/i,
-    /select exactly the packaged runtime agent `pi-workflow\.unit-implementer`/i,
+    /Inspect available profiles with `subagent_agents`/i,
+    /Require `unit-implementer` to report `source: "package"`, `package: "pi-workflow"`/i,
+    /exact tools `read, grep, find, ls, bash, edit, write, contact_supervisor`/i,
+    /higher-precedence override, missing `tools` metadata, or any mismatch must stop before mutation/i,
+    /select exactly that packaged profile/i,
     /never select the generic builtin `worker` as a fallback/i,
     /exactly one fresh implementer, strictly sequentially/i,
     /next implementer may start only after the parent has validated and committed/i,
     /per-unit Git metadata snapshot/i,
-    /Use a fresh context and foreground execution with inline returns/i,
-    /`context: "fresh"`/,
-    /`async: false`/,
-    /`output: false`/,
-    /`artifacts: false`/,
-    /mutation-capable implementer, omit `turnBudget` and omit any hard or count-based `toolBudget`/i,
+    /Call `subagent_spawn` with `agent: "unit-implementer"`/i,
+    /trusted repository as `working_dir`/i,
+    /Immediately call `subagent_wait` with that single returned run ID/i,
+    /Do not write, validate, stage, or perform other work while the implementer is active/i,
+    /Do not invent unsupported context, output, artifact, timeout, turn-budget, or tool-budget parameters/i,
     /Turn and tool counts are not safe delivery boundaries/i,
-    /expire after implementation and checks complete, misclassifying completed work as a partial run/i,
-    /generous outer `timeoutMs`.*wall-clock fail-safe.*never as a mutation-safe completion or checkpoint boundary/i,
     /bounded unit packet rather than the whole plan/i,
     /sole writer while active/i,
     /must not stage, commit, push, mutate refs, remotes, or Git configuration, modify the PRD or plan, or spawn subagents/i,
     /parent must not write concurrently/i,
-    /Do not use chains, parallel implementers, background runs, retries, resume, replacement implementers, review loops, or management actions\./,
+    /Do not use chains, parallel implementers, retries, resume, replacement implementers, review loops, or management actions\./,
   ], "yt-work");
+  assert.doesNotMatch(content, /pi-workflow\.unit-implementer|context: "fresh"|async: false|output: false|artifacts: false/i);
 });
 
 test("yt-work leaves validation and atomic commits to the parent", () => {
@@ -1100,16 +1170,16 @@ test("yt-work leaves validation and atomic commits to the parent", () => {
   ], "yt-work");
 });
 
-test("yt-work stops failed units without loops and has only an inline fallback", () => {
+test("yt-work stops failed units and missing pi-toolbox prerequisites without fallbacks", () => {
   const { content } = readSkill("yt-work");
   assertMatches(content, [
     /failed or partial implementer.*remains uncommitted and stops/is,
     /Launch no automatic retry or replacement/i,
     /Report the unit, changed files, checks and results, failure, and next user-controlled action/i,
-    /subagent tool or `pi-workflow\.unit-implementer` is unavailable.*parent implements/is,
-    /Never fall back to the generic builtin `worker`/i,
-    /Disclose the skipped delegation/i,
-    /After all units pass, summarize unit-to-commit mapping, verification, deviations, skipped delegation, and residual risks/i,
+    /`pi-toolbox`, `subagent_agents`, `subagent_spawn`, `subagent_wait`, and the `unit-implementer` profile are required/i,
+    /stop before mutation and report the exact installation or discovery failure/i,
+    /Never implement the unit inline and never fall back to the generic builtin `worker`/i,
+    /After all units pass, summarize unit-to-commit mapping, verification, deviations, and residual risks/i,
     /Suggest `\/skill:yt-review/i,
     /never invoke it automatically/i,
   ], "yt-work");
@@ -1148,36 +1218,39 @@ test("yt-review resolves patch, PR, branch, and working-tree coverage safely", (
   ], "yt-review");
 });
 
-test("yt-review applies the exact adaptive one-to-three reviewer policy", () => {
+test("yt-review applies the exact adaptive one-to-three specialized reviewer policy", () => {
   const { content } = readSkill("yt-review");
   assertMatches(content, [
-    /Inspect the available roles/i,
-    /1 fresh `reviewer`.*localized, low-risk change/is,
-    /combined correctness, regression, requirements, tests, and maintainability prompt/i,
-    /2 fresh reviewers.*standard change crossing concerns or modules/is,
-    /correctness and regression.*requirements, tests, and maintainability/is,
-    /3 fresh reviewers.*complex or sensitive work/is,
-    /security or authorization, persistence or migration, a public API, concurrency, an external integration, or broad scope/i,
-    /risk, security, and edge-case/i,
+    /Inspect available profiles with `subagent_agents`/i,
+    /1 reviewer.*`code-reviewer`.*localized, low-risk change/is,
+    /correctness, regressions, edge cases, tests, and maintainability/i,
+    /2 reviewers.*`implementation-conformity-reviewer` and `code-reviewer`/is,
+    /intent and scope conformity from code correctness/i,
+    /3 reviewers.*add `code-security-reviewer`/is,
+    /security or authorization, persistence or migration, a public API, concurrency, an external integration, sensitive data, payments, webhooks, or broad scope/i,
     /State the selected count and why/i,
     /Do not add reviewers merely because a diff is long/i,
   ], "yt-review");
 });
 
-test("yt-review uses one bounded fresh foreground review-only call", () => {
+test("yt-review spawns a bounded read-only specialized set and waits once", () => {
   const { content } = readSkill("yt-review");
   assertMatches(content, [
-    /one bounded foreground call, in parallel when more than one reviewer is selected/i,
-    /`context: "fresh"`/,
-    /`async: false`/,
-    /`output: false`/,
-    /`artifacts: false`/,
-    /do not edit or write files, stage, commit, push, comment, change labels, update PRs, or mutate any local or remote state/i,
-    /do not spawn subagents/i,
-    /Do not use chains, background runs, retries, resume, management actions, worker handoffs, autofix, replacement reviewers, or review\/fix loops/i,
-    /subagent tool or `reviewer` role is unavailable.*perform one review in the parent session/is,
-    /reduced independent-review confidence/i,
+    /Start each selected profile independently with `subagent_spawn`/i,
+    /trusted repository as `working_dir`/i,
+    /complete bounded diff, and relevant untracked-file content/i,
+    /omitted hunks or files as an explicit coverage gap/i,
+    /without `bash` to reconstruct Git state/i,
+    /one `subagent_wait` call with every selected run ID/i,
+    /`source: "package"`, `package: "pi-workflow"`/i,
+    /exact tool list `read, grep, find, ls`/i,
+    /restrict tools to `read`, `grep`, `find`, and `ls`/i,
+    /prohibit edits, writes, Git or remote mutation, comments, labels, PR updates, child delegation/i,
+    /Do not use chains, retries, resume, management actions, worker handoffs, autofix, replacement reviewers, or review\/fix loops/i,
+    /`pi-toolbox`.*required/is,
+    /stop with the prerequisite or discovery failure instead of substituting a generic or inline reviewer/i,
   ], "yt-review");
+  assert.doesNotMatch(content, /context: "fresh"|async: false|output: false|artifacts: false|`reviewer` role/i);
 });
 
 test("yt-review snapshots observable state and stops on report-only violations", () => {

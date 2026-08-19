@@ -15,12 +15,12 @@ The package intentionally replaces heavier workflow systems with a simple cycle:
 
 ## Core product constraints
 
-- Keep the repository Pi-native. Apart from the single packaged `pi-workflow.unit-implementer`, do not add Claude Code commands, custom agents, converters, marketplace infrastructure, or multi-harness compatibility layers.
+- Keep the repository Pi-native. Package only the ten named profiles documented below; do not add Claude Code commands, converters, marketplace infrastructure, or multi-harness compatibility layers.
 - Every skill must accept a direct request. A PRD, plan, or previous workflow stage is always optional.
 - Explicit user instructions take precedence over supplied artifacts; supplied artifacts take precedence over auto-discovered context.
 - Skills may suggest a next step but must never invoke it automatically.
 - Session output is the default. Create or update artifacts only when explicitly requested.
-- `pi-subagents` is optional and is not installed transitively. Brainstorm, plan, work, and review preserve a graceful parent-session fallback; work never falls back to the generic builtin `worker`, and dispatch is excluded and has no hidden fallback.
+- `pi-toolbox` v1.16.0 or newer is a required separately installed provider for `subagent_agents`, `subagent_spawn`, `subagent_wait`, named-profile discovery, and `tools` allowlist enforcement; its release must land before this workflow change. Before spawning, require package source `pi-workflow` and exact expected tool metadata so incompatible providers and user/project profile overrides fail closed. Dependent skills stop when a required tool or profile is unavailable; dispatch remains separate and has no hidden fallback.
 - Keep the package dependency-free unless a dependency is clearly necessary and explicitly approved.
 
 ## Skill contracts
@@ -29,7 +29,7 @@ The package intentionally replaces heavier workflow systems with a simple cycle:
 
 - Product framing only; do not plan implementation or edit code.
 - Ask exactly one focused question at a time when clarification is needed.
-- Use at most one foreground `scout` and one foreground `researcher`, only when their evidence materially improves the result.
+- Use at most one `repo-researcher` and one local-only `learnings-researcher`, only when their evidence materially improves the result; external research stays in the parent session.
 - An optional PRD may be proposed or reused, never required or silently written.
 
 ### `yt-dispatch`
@@ -46,15 +46,16 @@ The package intentionally replaces heavier workflow systems with a simple cycle:
 
 - Produce an implementation-ready plan without implementing it.
 - Inspect repository context and relevant external evidence when useful.
-- Use at most one foreground `scout` and one foreground `researcher`.
+- Use at most one `repo-researcher` and one local-only `learnings-researcher` for evidence.
+- Always review the draft with `plan-reviewer`; add `scope-guardian`, `feasibility-reviewer`, and `security-reviewer` only when semantically justified, with at most four active runs.
 - Keep the plan in the session unless the user explicitly requests a file.
 
 ### `yt-work`
 
 - Require a Git repository because each passing unit receives an atomic commit.
-- Run exactly one fresh packaged `pi-workflow.unit-implementer` per implementation unit, strictly sequentially; if it or the subagent tool is unavailable, implement inline and never use the generic builtin `worker`.
+- Run exactly one fresh packaged `unit-implementer` per implementation unit with `subagent_spawn`, then immediately collect it with `subagent_wait`; never implement inline or use the generic builtin `worker` when prerequisites are unavailable.
 - Each packet carries the explicit-request/artifact/repository authority order, a private compliance-checklist requirement, exact path and artifact boundaries, repository-pattern and test-discovery validation, and escalation before any deviation.
-- Omit `turnBudget` and hard/count-based `toolBudget` for mutation-capable implementers; bounded unit packets define scope, and an outer `timeoutMs` is only a wall-clock fail-safe.
+- Do not invent unsupported timeout, turn-budget, tool-budget, context, output, or artifact parameters; bounded unit packets define scope.
 - The parent validates repository state, diff scope, and checks before committing.
 - The implementer must never stage, commit, push, mutate refs/remotes/config, modify planning artifacts, or spawn subagents.
 - Stop on failed validation or contract violations. Do not retry, replace workers, or start correction loops automatically.
@@ -71,7 +72,7 @@ The package intentionally replaces heavier workflow systems with a simple cycle:
 ### `yt-review`
 
 - Accept patches, PRs, branches or refs, and working-tree targets.
-- Select one to three fresh reviewers based on semantic complexity and risk.
+- Select `code-reviewer` alone for localized work, add `implementation-conformity-reviewer` for standard cross-concern work, and add `code-security-reviewer` for complex or sensitive work.
 - Review is report-only: no edits, staging, commits, pushes, comments, labels, or autofixes.
 - Detect observable local mutation and compare remote evidence only when safe read-only APIs are available.
 - Treat configured role overrides and unobservable remote-only effects as trust boundaries.
@@ -81,7 +82,16 @@ The package intentionally replaces heavier workflow systems with a simple cycle:
 
 ```text
 agents/
-  unit-implementer.md  # runtime name pi-workflow.unit-implementer
+  code-reviewer.md
+  code-security-reviewer.md
+  feasibility-reviewer.md
+  implementation-conformity-reviewer.md
+  learnings-researcher.md
+  plan-reviewer.md
+  repo-researcher.md
+  scope-guardian.md
+  security-reviewer.md
+  unit-implementer.md
 skills/
   yt-brainstorm/SKILL.md
   yt-dispatch/SKILL.md
@@ -98,7 +108,7 @@ README.md
 LICENSE
 ```
 
-`package.json` exports `./skills` through `pi.skills` and exactly one agent directory through `pi.subagents.agents`. The optional `pi-subagents` extension discovers that agent; it remains non-transitive and there are no runtime dependencies. Each skill directory is self-contained and has a `SKILL.md` whose frontmatter contains only a matching `name` and a concise `description`.
+`package.json` exports `./skills` through `pi.skills` and one directory containing exactly ten profiles through `pi.subagents.agents`. The separately installed `pi-toolbox` discovers those profiles and enforces their tool allowlists. The nine research/review profiles expose only `read, grep, find, ls`; `unit-implementer` additionally exposes mutation tools. There are no npm runtime dependencies. Each skill directory is self-contained and has a `SKILL.md` whose frontmatter contains only a matching `name` and a concise `description`.
 
 ## Change guidelines
 

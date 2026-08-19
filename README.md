@@ -4,13 +4,16 @@ A small, Pi-only development workflow for moving from an idea to reviewed commit
 
 ## Install
 
-Install the public Git package:
+Install the required `pi-toolbox` provider first, then the public workflow package:
 
 ```bash
+pi install git:github.com/yteruel31/pi-toolbox
 pi install git:github.com/yteruel31/pi-workflow
 ```
 
-Restart Pi so it discovers the skills. Update installed Git packages with:
+`pi-toolbox` v1.16.0 or newer supplies `subagent_agents`, `subagent_spawn`, and `subagent_wait`, discovers the packaged profiles, and enforces their `tools` frontmatter allowlists. Merge or install that provider release before this workflow change. Both packages are required for delegated workflow skills. The provider must expose each profile's `tools` array in `subagent_agents`; run `pi update --extensions` if an unpinned installation lacks that metadata.
+
+Restart Pi so it discovers the tools, agents, and skills. Update installed Git packages with:
 
 ```bash
 pi update --extensions
@@ -40,19 +43,15 @@ Every skill, including `yt-dispatch` and `yt-test-browser`, is independently usa
 
 ## Bounded delegation
 
-When Pi's native subagent roles are available, the skills use a deliberately small delegation model:
+With the required `pi-toolbox` provider, the skills use packaged named profiles and collect their background results with `subagent_wait`:
 
-- **Brainstorm and plan:** optionally use at most one local `scout` and one external `researcher` when their evidence would materially improve the result.
-- **Work:** use exactly one fresh packaged `pi-workflow.unit-implementer` per implementation unit, strictly sequentially. The agent validates the packet against repository patterns, follows exact required paths and artifact boundaries, and escalates before any deviation. Mutation-capable implementers receive neither a `turnBudget` nor a hard/count-based `toolBudget`; bounded unit packets define scope, while a generous outer `timeoutMs` may serve only as a wall-clock fail-safe. The parent validates the diff and checks, then creates one atomic commit for each passing unit before starting the next.
-- **Review:** select one to three fresh `reviewer` roles from semantic complexity and synthesize one report-only result.
+- **Brainstorm:** optionally use at most one `repo-researcher` and one local-only `learnings-researcher` when their evidence would materially improve product framing.
+- **Plan evidence:** optionally use the same two research profiles. External documentation research remains a parent-session responsibility.
+- **Plan review:** always use `plan-reviewer`, with adaptive `scope-guardian`, `feasibility-reviewer`, and `security-reviewer` profiles selected by semantic risk, never exceeding four concurrent runs.
+- **Work:** use exactly one fresh `unit-implementer` per implementation unit, immediately wait for it, validate its diff and checks in the parent, then create one atomic commit for each passing unit before starting the next. Bounded unit packets define scope; unsupported timeout, turn-budget, and tool-budget parameters are never invented.
+- **Review:** select `code-reviewer` alone for localized low-risk work, add `implementation-conformity-reviewer` for standard cross-concern work, and add `code-security-reviewer` for complex or sensitive work.
 
-[`pi-subagents`](https://www.npmjs.com/package/pi-subagents) is optional enrichment and is not installed transitively. To enable role delegation:
-
-```bash
-pi install npm:pi-subagents
-```
-
-Without the extension, brainstorm, plan, work, and review have a graceful inline fallback in the parent session and report reduced delegation or review confidence where relevant. Work also falls back inline when its packaged agent is unavailable and never routes an implementation unit to the generic builtin `worker`. `yt-dispatch` is explicitly excluded from this generic `pi-subagents` fallback: it has no hidden or inline fallback.
+The nine research/review profiles are technically restricted to `read`, `grep`, `find`, and `ls` through their frontmatter. Before every spawn, skills require the selected catalog entry to come from package `pi-workflow` and to expose the exact expected tools; user/project overrides and incompatible provider versions are rejected. `unit-implementer` receives mutation tools but may never stage, commit, push, or mutate Git metadata. If the provider tools or a required profile is unavailable, the dependent skill stops with a prerequisite or discovery error instead of silently substituting a generic role or inline implementation. `yt-dispatch` remains separate from `pi-toolbox` delegation and has no hidden or inline fallback.
 
 ## Visible dispatch
 
@@ -87,7 +86,16 @@ Repository layout:
 
 ```text
 agents/
-  unit-implementer.md  # packaged as pi-workflow.unit-implementer
+  code-reviewer.md
+  code-security-reviewer.md
+  feasibility-reviewer.md
+  implementation-conformity-reviewer.md
+  learnings-researcher.md  # local repository evidence only
+  plan-reviewer.md
+  repo-researcher.md
+  scope-guardian.md
+  security-reviewer.md
+  unit-implementer.md
 skills/
   yt-brainstorm/SKILL.md
   yt-dispatch/SKILL.md
@@ -102,6 +110,6 @@ docs/validation/
 package.json
 ```
 
-The package exposes skills through `pi.skills: ["./skills"]` and its single dedicated agent through `pi.subagents.agents: ["./agents"]`. It ships no commands, extensions, converters, or cross-harness compatibility layer. Agent discovery requires the optional `pi-subagents` extension; the package retains no runtime dependencies and does not install `pi-subagents` transitively.
+The package exposes skills through `pi.skills: ["./skills"]` and all ten dedicated profiles through `pi.subagents.agents: ["./agents"]`. It ships no commands, extensions, converters, or cross-harness compatibility layer. Agent discovery and execution require the separately installed `pi-toolbox`; `pi-workflow` itself retains no npm runtime dependencies.
 
 Licensed under the [MIT License](LICENSE).

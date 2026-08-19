@@ -41,11 +41,11 @@ Do not require a plan artifact. Keep the map in the session unless the user expl
 
 ## Run one implementer per unit
 
-Inspect the available roles before delegation. For the current unit, select exactly the packaged runtime agent `pi-workflow.unit-implementer`; never select the generic builtin `worker` as a fallback. Run exactly one fresh implementer, strictly sequentially. The next implementer may start only after the parent has validated and committed the previous unit.
+Inspect available profiles with `subagent_agents`. Require `unit-implementer` to report `source: "package"`, `package: "pi-workflow"`, and the exact tools `read, grep, find, ls, bash, edit, write, contact_supervisor`; a higher-precedence override, missing `tools` metadata, or any mismatch must stop before mutation. For the current unit, select exactly that packaged profile; never select the generic builtin `worker` as a fallback. Run exactly one fresh implementer, strictly sequentially. The next implementer may start only after the parent has validated and committed the previous unit.
 
 Immediately before launching each implementer, capture a per-unit Git metadata snapshot: expected `HEAD`, current branch, the complete staged/index state, all local refs, and redacted remote configuration or URLs. Never retain credentials in the snapshot.
 
-Use a fresh context and foreground execution with inline returns: set `context: "fresh"`, `async: false`, `output: false`, and `artifacts: false`. For every mutation-capable implementer, omit `turnBudget` and omit any hard or count-based `toolBudget`. Turn and tool counts are not safe delivery boundaries: they can expire after implementation and checks complete, misclassifying completed work as a partial run. Keep execution bounded by the unit packet. A generous outer `timeoutMs` is allowed only as a wall-clock fail-safe, never as a mutation-safe completion or checkpoint boundary.
+Call `subagent_spawn` with `agent: "unit-implementer"`, a concise unit name, the trusted repository as `working_dir`, and the complete bounded unit packet. Immediately call `subagent_wait` with that single returned run ID. Do not write, validate, stage, or perform other work while the implementer is active. Do not invent unsupported context, output, artifact, timeout, turn-budget, or tool-budget parameters. Turn and tool counts are not safe delivery boundaries; keep execution bounded by the unit packet.
 
 Send a bounded unit packet rather than the whole plan. Include:
 
@@ -59,9 +59,9 @@ Send a bounded unit packet rather than the whole plan. Include:
 
 Tell the child that exact planned paths and artifact boundaries are mandatory unless explicitly optional and that it is the sole writer while active. It may edit unit-owned files and run focused checks, but it must not stage, commit, push, mutate refs, remotes, or Git configuration, modify the PRD or plan, or spawn subagents. It must perform required checks, distinguish baseline failures with evidence, and return exact changed paths, checks and results, blockers, deviations, and confirmation that nothing is staged.
 
-The parent must not write concurrently with the implementer. Do not use chains, parallel implementers, background runs, retries, resume, replacement implementers, review loops, or management actions.
+The parent must not write concurrently with the implementer. Do not use chains, parallel implementers, retries, resume, replacement implementers, review loops, or management actions.
 
-If the subagent tool or `pi-workflow.unit-implementer` is unavailable, the parent implements the current unit inline under the same packet, compliance checklist, escalation, validation, and commit gates. Disclose the skipped delegation. Never fall back to the generic builtin `worker`.
+`pi-toolbox`, `subagent_agents`, `subagent_spawn`, `subagent_wait`, and the `unit-implementer` profile are required. If any prerequisite is unavailable, stop before mutation and report the exact installation or discovery failure. Never implement the unit inline and never fall back to the generic builtin `worker`.
 
 ## Parent validation
 
@@ -94,4 +94,4 @@ Never let a child create the commit. Never push or open a pull request unless th
 
 ## Completion
 
-After all units pass, summarize unit-to-commit mapping, verification, deviations, skipped delegation, and residual risks. Suggest `/skill:yt-review <range-or-target>` when review is useful, but never invoke it automatically.
+After all units pass, summarize unit-to-commit mapping, verification, deviations, and residual risks. Suggest `/skill:yt-review <range-or-target>` when review is useful, but never invoke it automatically.

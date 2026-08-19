@@ -31,16 +31,16 @@ Auto-discovered context is supporting evidence only. It never silently overrides
 
 ## Bounded research
 
-Work inline unless separate evidence would materially change scope, a recommendation, or confidence.
+Work inline unless separate evidence would materially change scope, a recommendation, or confidence. Use parent-session web tools directly when current external evidence is necessary; packaged research agents are intentionally local-only.
 
-Before delegating, inspect the available roles. A single invocation may use:
+Before delegating, inspect the available profiles with `subagent_agents`. For every selected profile, require `source: "package"`, `package: "pi-workflow"`, and the exact tool list `read, grep, find, ls`; a higher-precedence override, missing `tools` metadata, or any mismatch is an incompatible provider/profile and must stop delegation. A single invocation may use:
 
-- at most one fresh `scout` for local repository evidence;
-- at most one fresh `researcher` for external evidence.
+- at most one fresh `repo-researcher` for local repository structure, patterns, and tests;
+- at most one fresh `learnings-researcher` for prior decisions and lessons recorded in local repository files.
 
-When both are necessary, they may run in one bounded parallel call. Use foreground execution with inline returns: set `async: false`, `output: false`, and `artifacts: false`. Tell each child to stay read-only, return concise evidence, and not spawn subagents.
+For each selected profile, call `subagent_spawn` with the exact profile name, the trusted current repository as `working_dir`, and a complete read-only question. When both are necessary, start both independently, then make one `subagent_wait` call with both run IDs before using their evidence. Never ask either child to spawn agents or perform external research.
 
-Do not use chains, saved workflows, background runs, retries, resume, management actions, or additional agents. If the tool, role, or web access is unavailable, continue inline when safe and mention only the evidence or capability that could not be obtained.
+Do not use chains, retries, resume, replacement agents, or management actions. `pi-toolbox` and its named profiles are package prerequisites; if `subagent_agents`, `subagent_spawn`, `subagent_wait`, or a selected profile is unavailable, stop with the prerequisite or discovery failure instead of silently changing the research contract.
 
 ## Workflow
 

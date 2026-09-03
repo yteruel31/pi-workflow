@@ -1,6 +1,6 @@
 # Pi Workflow
 
-A small, Pi-only development workflow for moving from an idea to reviewed commits without mandatory documents, heavy orchestration, or automatic review/fix loops.
+A small, Pi-only development workflow for moving from an idea to autonomously implemented, reviewed commits without mandatory documents or heavy orchestration.
 
 ## Install
 
@@ -35,7 +35,7 @@ Use a skill naturally (for example, “brainstorm this feature with yt-brainstor
 | `yt-brainstorm` | `/skill:yt-brainstorm` | Clarify a product idea, compare meaningful options, and optionally capture a concise PRD. |
 | `yt-dispatch` | `/skill:yt-dispatch` | Dispatch independent work into separate, visible Herdr Pi sessions. |
 | `yt-plan` | `/skill:yt-plan` | Turn a direct request, optional PRD, or existing plan into ordered implementation units. |
-| `yt-work` | `/skill:yt-work` | Implement a request or plan as sequential, validated, committed units. |
+| `yt-work` | `/skill:yt-work` | Implement a request or plan as dependency-ready, validated, committed units. |
 | `yt-review` | `/skill:yt-review` | Review a patch, PR, branch, ref, or working tree and return one prioritized report. |
 | `yt-test-browser` | `/skill:yt-test-browser` | Run a scenario or bounded exploratory browser smoke test against an already reachable web application. |
 
@@ -48,8 +48,8 @@ With the required `pi-toolbox` provider, the skills use packaged named profiles 
 - **Brainstorm:** optionally use at most one `repo-researcher` and one local-only `learnings-researcher` when their evidence would materially improve product framing.
 - **Plan evidence:** optionally use the same two research profiles. External documentation research remains a parent-session responsibility.
 - **Plan review:** always use `plan-reviewer`, with adaptive `scope-guardian`, `feasibility-reviewer`, and `security-reviewer` profiles selected by semantic risk, never exceeding four concurrent runs.
-- **Work:** use exactly one fresh `unit-implementer` per implementation unit, immediately wait for it, validate its diff and checks in the parent, then create one atomic commit for each passing unit before starting the next. Bounded unit packets define scope; unsupported timeout, turn-budget, and tool-budget parameters are never invented.
-- **Review:** select `code-reviewer` alone for localized low-risk work, add `implementation-conformity-reviewer` for standard cross-concern work, and add `code-security-reviewer` for complex or sensitive work.
+- **Work:** build a dependency graph and use one fresh `unit-implementer` for each initial unit attempt. Dependency-ready units with disjoint exact file ownership may run concurrently: spawn the whole batch, wait once for all run IDs, and prohibit parent mutation while any member is active. Overlapping or uncertain paths stay sequential. After settlement, the parent validates and creates one atomic commit for each passing unit in deterministic order without absorbing other unstaged batch diffs. Independent bounded corrections may also batch while they make measurable progress; a failed unit blocks only its dependents. Bounded packets define scope; unsupported timeout, turn-budget, and tool-budget parameters are never invented.
+- **Review:** spawn exactly one packaged `code-reviewer`, wait exactly once, and synthesize exactly one report in one bounded pass across intent conformity, correctness, regressions, security-sensitive concerns, tests, and maintainability. Never run a second review after fixes or loop until clean.
 
 The nine research/review profiles are technically restricted to `read`, `grep`, `find`, and `ls` through their frontmatter. Before every spawn, skills require the selected catalog entry to come from package `pi-workflow` and to expose the exact expected tools; user/project overrides and incompatible provider versions are rejected. `unit-implementer` receives mutation tools but may never stage, commit, push, or mutate Git metadata. If the provider tools or a required profile is unavailable, the dependent skill stops with a prerequisite or discovery error instead of silently substituting a generic role or inline implementation. `yt-dispatch` remains separate from `pi-toolbox` delegation and has no hidden or inline fallback.
 
@@ -69,9 +69,9 @@ The skill requires the external Vercel `agent-browser` CLI, which is not a packa
 
 ## Safety behavior
 
-`yt-work` requires a Git repository and performs a Git preflight before editing. It records existing changes, refuses to proceed with pre-existing staged changes, and blocks ambiguous overlap with foreign work. The packaged implementer never stages or commits: the parent stages only unit-owned changes, validates them, and owns the atomic commit. The skill does not push or open a pull request automatically.
+`yt-work` requires a Git repository and performs a Git preflight before editing. It records existing changes, refuses to proceed with pre-existing staged changes, and blocks ambiguous overlap with foreign work. The parent autonomously answers routine implementer escalations and corrects failed, partial, mismatched, or out-of-scope attempts while measurable progress continues. It may run dependency-ready units concurrently only with pairwise-disjoint exact file ownership; children never share a file, stage, commit, push, or mutate Git metadata. The parent remains idle during active batches, then stages only one unit's changes for each deterministic atomic commit. A failure blocks only dependent units, so unrelated ready work can continue. User contact is reserved for unsafe or irreversible actions, credentials or permissions, unresolved product decisions, staged or overlapping foreign work, unavailable prerequisites, and no-progress correction cycles. The skill never rewrites foreign or unauthorized Git state and does not push or open a pull request automatically.
 
-`yt-review` is report-only. It compares observable local repository state before and after reviewers and, when safe read APIs are available, re-queries live remote refs and target-specific PR metadata on a best-effort basis. It prohibits local or remote mutation, never applies an autofix, and stops with a contract-violation report when compared evidence changes. Remote-only mutation that available tools cannot observe and configured role overrides remain trust boundaries; the report marks remote state unverified instead of claiming enforcement when evidence is unavailable.
+`yt-review` is report-only: a single-pass, single-`code-reviewer` skill. It compares observable local repository state before and after the reviewer and, when safe read APIs are available, re-queries live remote refs and target-specific PR metadata on a best-effort basis. It prohibits local or remote mutation, never applies an autofix, and stops with a contract-violation report when compared evidence changes. Remote-only mutation that available tools cannot observe and configured role overrides remain trust boundaries; the report marks remote state unverified instead of claiming enforcement when evidence is unavailable.
 
 ## Development
 

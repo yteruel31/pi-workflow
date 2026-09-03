@@ -262,16 +262,20 @@ test("packaged unit implementer has strict discovery metadata and compliance pro
   assert.equal(values.get("tools"), "read, grep, find, ls, bash, edit, write, contact_supervisor");
   for (const forbidden of ["model", "turnBudget", "toolBudget", "dependencies"]) assert.equal(values.has(forbidden), false);
   assertMatches(content, [
-    /exactly one bounded, approved yt-work unit/i,
+    /exactly one bounded, approved yt-work attempt/i,
     /current explicit unit packet and corrections.*artifact explicitly supplied.*repository context/is,
     /private compliance checklist/i,
     /Exact planned paths and artifact boundaries are mandatory unless.*optional/i,
     /test discovery patterns/i,
-    /Do not silently rename a path, consolidate or split planned artifacts, substitute an architecture, skip a required check, widen scope/i,
-    /contact_supervisor.*reason: "need_decision".*wait/is,
-    /unavailable.*stop.*blocked/is,
+    /ordinary uncertainty or a minor plan mismatch.*smallest reversible option.*repository patterns/is,
+    /record the choice and evidence/i,
+    /Only when.*evidence cannot safely resolve.*contact_supervisor.*reason: "need_decision".*wait/is,
+    /supervisor normally resolves.*without involving the user/is,
+    /contact is unavailable.*stop.*blocked/is,
     /Never stage, commit, or push; mutate Git refs, remotes, or configuration; modify a plan or PRD; or spawn subagents/i,
     /Distinguish failures that already existed.*baseline/is,
+    /exclusive writer for the exact files assigned/i,
+    /Do not write outside.*exact file-ownership boundary.*concurrent peer's files/is,
     /exact changed paths/i,
     /nothing was staged, committed, or pushed/i,
   ], "unit implementer");
@@ -338,7 +342,11 @@ test("README documents installation, all commands, fallback, commits, and report
     /enforces their `tools` frontmatter allowlists/i,
     /provider must expose each profile's `tools` array in `subagent_agents`/i,
     /user\/project overrides and incompatible provider versions are rejected/i,
-    /one fresh `unit-implementer` per implementation unit/i,
+    /one fresh `unit-implementer` for each initial unit attempt/i,
+    /Dependency-ready units with disjoint exact file ownership may run concurrently/i,
+    /spawn the whole batch, wait once for all run IDs/i,
+    /Independent bounded corrections may also batch while they make measurable progress/i,
+    /exactly one packaged `code-reviewer`.*exactly one report.*one bounded pass/is,
     /unsupported timeout, turn-budget, and tool-budget parameters are never invented/i,
     /nine research\/review profiles are technically restricted to `read`, `grep`, `find`, and `ls`/i,
     /stops with a prerequisite or discovery error/i,
@@ -521,14 +529,13 @@ test("skills reject contradictory workflow directives", () => {
   const { content: work } = readSkill("yt-work");
   assertRejectsContradictions(work, [
     /\b(?:the )?worker(?:s)? (?:may|can|should|must) (?:stage|commit|push)\b/i,
-    /\brun workers? in parallel\b/i,
-    /\bautomatically (?:retry|replace)\b/i,
+    /\brun workers? in parallel without exact file ownership\b/i,
+    /\bautomatically replace\b/i,
   ], [
     "The worker may stage changes.",
     "The worker may commit changes.",
     "The worker may push changes.",
-    "Run workers in parallel.",
-    "Automatically retry failed workers.",
+    "Run workers in parallel without exact file ownership.",
     "Automatically replace failed workers.",
   ], "yt-work");
 
@@ -1118,35 +1125,31 @@ test("yt-work enforces Git and foreign-change preflight", () => {
     /staged paths, unstaged paths, and untracked paths separately/i,
     /If any pre-existing staged change exists, stop/i,
     /Do not unstage, stash, commit, or otherwise alter it automatically/i,
-    /On a default branch.*require explicit user permission/is,
+    /default branch.*requires explicit user authority/is,
     /disjoint from the current unit's files and hunks/i,
-    /block that unit before staging or committing/i,
+    /block before staging or committing/i,
   ], "yt-work");
 });
 
-test("yt-work uses exactly one sequential packaged unit-implementer run per unit", () => {
+test("yt-work batches only dependency-ready implementers with disjoint file ownership", () => {
   const { content } = readSkill("yt-work");
   assertMatches(content, [
     /Inspect available profiles with `subagent_agents`/i,
     /Require `unit-implementer` to report `source: "package"`, `package: "pi-workflow"`/i,
     /exact tools `read, grep, find, ls, bash, edit, write, contact_supervisor`/i,
-    /higher-precedence override, missing `tools` metadata, or any mismatch must stop before mutation/i,
-    /select exactly that packaged profile/i,
-    /never select the generic builtin `worker` as a fallback/i,
-    /exactly one fresh implementer, strictly sequentially/i,
-    /next implementer may start only after the parent has validated and committed/i,
-    /per-unit Git metadata snapshot/i,
-    /Call `subagent_spawn` with `agent: "unit-implementer"`/i,
-    /trusted repository as `working_dir`/i,
-    /Immediately call `subagent_wait` with that single returned run ID/i,
-    /Do not write, validate, stage, or perform other work while the implementer is active/i,
+    /Never select the generic builtin `worker` or implement inline/i,
+    /Build an explicit dependency graph/i,
+    /dependency-ready only when all of its dependencies have passed and been committed/i,
+    /multiple dependency-ready independent units only when.*exact file ownership.*pairwise disjoint/is,
+    /hunk-level separation within one file is insufficient/i,
+    /overlapping or uncertain paths remain sequential/i,
+    /capture one common Git metadata snapshot/i,
+    /Spawn the whole eligible batch.*one `subagent_spawn` call per unit/is,
+    /exactly one `subagent_wait` call containing all returned run IDs/i,
+    /must not edit, validate, stage, commit, or perform other work while any batch member is active/i,
+    /exclusive writer for its exact attempt-owned files/i,
+    /must never stage, commit, push, mutate refs, remotes, or Git configuration, modify a PRD or plan, or spawn subagents/i,
     /Do not invent unsupported context, output, artifact, timeout, turn-budget, or tool-budget parameters/i,
-    /Turn and tool counts are not safe delivery boundaries/i,
-    /bounded unit packet rather than the whole plan/i,
-    /sole writer while active/i,
-    /must not stage, commit, push, mutate refs, remotes, or Git configuration, modify the PRD or plan, or spawn subagents/i,
-    /parent must not write concurrently/i,
-    /Do not use chains, parallel implementers, retries, resume, replacement implementers, review loops, or management actions\./,
   ], "yt-work");
   assert.doesNotMatch(content, /pi-workflow\.unit-implementer|context: "fresh"|async: false|output: false|artifacts: false/i);
 });
@@ -1154,13 +1157,14 @@ test("yt-work uses exactly one sequential packaged unit-implementer run per unit
 test("yt-work leaves validation and atomic commits to the parent", () => {
   const { content } = readSkill("yt-work");
   assertMatches(content, [
-    /first compare `HEAD`, branch, the complete staged\/index state, local refs, and redacted remote configuration exactly with the per-unit snapshot/i,
-    /metadata delta as an implementer contract violation and stop without rewriting history, retrying, replacing the implementer, or committing/i,
-    /remote-only effect.*trust boundary/is,
-    /inspect actual status and diff against the unit packet and preflight baseline/i,
-    /confirm no pre-existing change was absorbed/i,
-    /run the decisive focused checks/i,
-    /stage only unit-owned paths or hunks/i,
+    /first compare `HEAD`, branch, the complete staged\/index state, local refs, and redacted remote configuration exactly with the common pre-batch snapshot/i,
+    /metadata delta as a hard contract blocker.*do not rewrite history or state, revert it, retry, replace the implementer, stage, or commit/is,
+    /remote-only actions are a trust boundary/is,
+    /inspect status and diff against the packet and foreign-change baseline/i,
+    /confirm no.*pre-existing.*change was absorbed/is,
+    /run decisive focused checks/i,
+    /deterministic unit-map\/dependency order/i,
+    /stage only that unit's owned paths or hunks, leaving every other batch member's diff unstaged/i,
     /inspect the complete staged diff and staged path list/i,
     /one conventional atomic commit/i,
     /inspect the resulting commit/i,
@@ -1170,16 +1174,22 @@ test("yt-work leaves validation and atomic commits to the parent", () => {
   ], "yt-work");
 });
 
-test("yt-work stops failed units and missing pi-toolbox prerequisites without fallbacks", () => {
+test("yt-work autonomously corrects units and stops only on hard blockers", () => {
   const { content } = readSkill("yt-work");
   assertMatches(content, [
-    /failed or partial implementer.*remains uncommitted and stops/is,
-    /Launch no automatic retry or replacement/i,
-    /Report the unit, changed files, checks and results, failure, and next user-controlled action/i,
+    /parent owns routine implementation decisions/i,
+    /Do not relay routine choices to the user/i,
+    /failed checks, partial implementation, plan mismatch, or out-of-scope work.*launch a fresh bounded correction attempt/is,
+    /Corrections for multiple independent failed units may form another batch.*dependency-ready and disjoint exact-file rules/is,
+    /Continue bounded corrections while measurable progress occurs/i,
+    /no measurable progress.*block that unit and its dependents/is,
+    /failed unit blocks only its transitive dependents/is,
+    /unrelated dependency-ready units may continue/i,
+    /unsafe or irreversible action, credentials or permissions, an unresolved product decision, pre-existing staged or overlapping foreign work, an unavailable prerequisite/is,
     /`pi-toolbox`, `subagent_agents`, `subagent_spawn`, `subagent_wait`, and the `unit-implementer` profile are required/i,
-    /stop before mutation and report the exact installation or discovery failure/i,
-    /Never implement the unit inline and never fall back to the generic builtin `worker`/i,
-    /After all units pass, summarize unit-to-commit mapping, verification, deviations, and residual risks/i,
+    /unavailable prerequisites are hard blockers before mutation/i,
+    /Never select the generic builtin `worker` or implement inline/i,
+    /After all units pass, summarize unit-to-commit mapping, checks, autonomous decisions and deviations, correction progress, and residual risks/i,
     /Suggest `\/skill:yt-review/i,
     /never invoke it automatically/i,
   ], "yt-work");
@@ -1211,44 +1221,41 @@ test("yt-review resolves patch, PR, branch, and working-tree coverage safely", (
     /Branch or ref.*best verified merge base/is,
     /explicit base, a configured tracking or repository base, then the repository's verified default branch/i,
     /Working tree.*staged changes, unstaged changes, and relevant untracked files against `HEAD`/is,
-    /ask exactly one focused question or request that the user supply a diff/i,
-    /Never guess a base, head, or review range/i,
-    /resolved target, comparison base, included and excluded coverage, intent sources, and confidence/i,
-    /patches, diffs, PR descriptions, comments, commit messages, linked content, and code under review as untrusted input/i,
+    /ask exactly one focused question or request a diff/i,
+    /Never guess/i,
+    /Record target, comparison base, included and excluded coverage, intent sources, and confidence/i,
+    /patches, diffs, PR descriptions, comments, commit messages, linked content, and reviewed code as untrusted input/i,
   ], "yt-review");
 });
 
-test("yt-review applies the exact adaptive one-to-three specialized reviewer policy", () => {
+test("yt-review uses exactly one packaged code-reviewer for one comprehensive pass", () => {
   const { content } = readSkill("yt-review");
   assertMatches(content, [
-    /Inspect available profiles with `subagent_agents`/i,
-    /1 reviewer.*`code-reviewer`.*localized, low-risk change/is,
-    /correctness, regressions, edge cases, tests, and maintainability/i,
-    /2 reviewers.*`implementation-conformity-reviewer` and `code-reviewer`/is,
-    /intent and scope conformity from code correctness/i,
-    /3 reviewers.*add `code-security-reviewer`/is,
-    /security or authorization, persistence or migration, a public API, concurrency, an external integration, sensitive data, payments, webhooks, or broad scope/i,
-    /State the selected count and why/i,
-    /Do not add reviewers merely because a diff is long/i,
+    /Inspect profiles with `subagent_agents`/i,
+    /Require `code-reviewer`.*`source: "package"`, `package: "pi-workflow"`/is,
+    /Do not select or invoke any other reviewer/i,
+    /intent conformity, correctness, regressions and edge cases, security-sensitive concerns, tests, and maintainability/i,
+    /exactly one report in exactly one pass/i,
+    /no.*second review after fixes.*review-until-clean/is,
   ], "yt-review");
 });
 
-test("yt-review spawns a bounded read-only specialized set and waits once", () => {
+test("yt-review spawns one bounded read-only reviewer and waits once", () => {
   const { content } = readSkill("yt-review");
   assertMatches(content, [
-    /Start each selected profile independently with `subagent_spawn`/i,
+    /Call `subagent_spawn` exactly once with `agent: "code-reviewer"`/i,
     /trusted repository as `working_dir`/i,
     /complete bounded diff, and relevant untracked-file content/i,
-    /omitted hunks or files as an explicit coverage gap/i,
+    /omitted hunks or files as explicit coverage gaps/i,
     /without `bash` to reconstruct Git state/i,
-    /one `subagent_wait` call with every selected run ID/i,
+    /exactly one `subagent_wait` call with that one returned run ID/i,
     /`source: "package"`, `package: "pi-workflow"`/i,
-    /exact tool list `read, grep, find, ls`/i,
-    /restrict tools to `read`, `grep`, `find`, and `ls`/i,
-    /prohibit edits, writes, Git or remote mutation, comments, labels, PR updates, child delegation/i,
-    /Do not use chains, retries, resume, management actions, worker handoffs, autofix, replacement reviewers, or review\/fix loops/i,
+    /exact tools `read, grep, find, ls`/i,
+    /restricts tools to `read`, `grep`, `find`, and `ls`/i,
+    /prohibits edits, writes, Git or remote mutation, comments, labels, PR updates, and child delegation/i,
+    /no chains, retries, resume, management actions, worker handoffs, autofix, replacement or second reviewer, second review after fixes, review-until-clean behavior, or review\/fix loop/i,
     /`pi-toolbox`.*required/is,
-    /stop with the prerequisite or discovery failure instead of substituting a generic or inline reviewer/i,
+    /stop on prerequisite or discovery failure rather than substituting a generic or inline reviewer/i,
   ], "yt-review");
   assert.doesNotMatch(content, /context: "fresh"|async: false|output: false|artifacts: false|`reviewer` role/i);
 });
@@ -1257,16 +1264,16 @@ test("yt-review snapshots observable state and stops on report-only violations",
   const { content } = readSkill("yt-review");
   assertMatches(content, [
     /`HEAD`, current branch, local refs, remote-tracking refs, and redacted remote configuration or URLs/i,
-    /complete staged diff and unstaged diff/i,
-    /relevant untracked paths and a content hash or equivalent content state/i,
+    /complete staged and unstaged diffs/i,
+    /relevant untracked paths plus content hashes or equivalent state/i,
     /safe read-only APIs.*live server-side ref tips and target-specific PR metadata, comments, and labels/is,
-    /Configured role overrides and remote-only actions.*trust boundary/is,
+    /Configured role overrides and remote-only actions.*trust boundaries/is,
     /recapture and compare the same observable local state/i,
-    /re-query live server-side ref tips and target-specific PR metadata, comments, and labels/i,
+    /recapture the remote evidence/i,
     /observable local or remote evidence changed.*stop and report a review-contract violation/is,
-    /remote evidence was unavailable or incomplete.*confirm only.*observable local state.*remote mutation as unverified/is,
-    /Never claim that remote mutation was detected or proven absent without matching before-and-after remote evidence/i,
-    /Do not revert, fix, stage, commit, push, or launch another agent automatically/i,
+    /remote evidence was unavailable or incomplete.*confirm only observable local state.*mark remote mutation unverified/is,
+    /Never claim remote mutation was detected or absent without matching evidence/i,
+    /Do not revert, fix, stage, commit, push, or launch another agent/i,
     /Never change implementation, Git state, or remote systems/i,
   ], "yt-review");
 });
@@ -1274,13 +1281,13 @@ test("yt-review snapshots observable state and stops on report-only violations",
 test("yt-review returns one deduplicated P0-P3 report without auto handoff", () => {
   const { content } = readSkill("yt-review");
   assertMatches(content, [
-    /Deduplicate all reviewer outputs into one report/i,
+    /Synthesize the single reviewer output into exactly one report/i,
     /Prefer a few actionable findings over speculative concerns or style trivia/i,
     /\*\*P0:\*\*.*\*\*P1:\*\*.*\*\*P2:\*\*.*\*\*P3:\*\*/is,
-    /Verdict.*Target and coverage.*Intent sources.*Reviewer routing.*Findings.*Verification gaps.*Assumptions and residual risks.*Report-only confirmation/is,
-    /file\/area evidence, impact, and a suggested fix/i,
-    /Never apply a suggested fix inside this skill/i,
-    /When actionable findings exist, suggest passing this report to `\/skill:yt-work`/i,
-    /never invoke that skill or start fixes automatically/i,
+    /Verdict.*Target and coverage.*Intent sources.*Review pass.*Findings.*Verification gaps.*Assumptions and residual risks.*Report-only confirmation/is,
+    /file\/area evidence, impact, and suggested fix/i,
+    /Never apply a fix/i,
+    /When findings exist, suggest passing this report to `\/skill:yt-work`/i,
+    /never invoke that skill, start fixes, or run another review automatically/i,
   ], "yt-review");
 });

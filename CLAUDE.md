@@ -7,8 +7,8 @@
 - `yt-brainstorm` — clarify a product idea without implementing it;
 - `yt-dispatch` — launch independent units in separate visible Herdr Pi sessions;
 - `yt-plan` — turn a request into an implementation-ready plan;
-- `yt-work` — implement sequential units with one parent-owned commit per passing unit;
-- `yt-review` — perform an adaptive, report-only review with one to three reviewers;
+- `yt-work` — implement dependency-ready units with one parent-owned commit per passing unit;
+- `yt-review` — perform one bounded, report-only pass with exactly one packaged `code-reviewer`;
 - `yt-test-browser` — validate an already reachable web application through `agent-browser` and return an evidence-rich report.
 
 The package intentionally replaces heavier workflow systems with a simple cycle: brainstorm → plan → work → review, with dispatch available when independent work benefits from separate visible sessions. The order is suggested, never mandatory.
@@ -53,12 +53,16 @@ The package intentionally replaces heavier workflow systems with a simple cycle:
 ### `yt-work`
 
 - Require a Git repository because each passing unit receives an atomic commit.
-- Run exactly one fresh packaged `unit-implementer` per implementation unit with `subagent_spawn`, then immediately collect it with `subagent_wait`; never implement inline or use the generic builtin `worker` when prerequisites are unavailable.
-- Each packet carries the explicit-request/artifact/repository authority order, a private compliance-checklist requirement, exact path and artifact boundaries, repository-pattern and test-discovery validation, and escalation before any deviation.
-- Do not invent unsupported timeout, turn-budget, tool-budget, context, output, or artifact parameters; bounded unit packets define scope.
-- The parent validates repository state, diff scope, and checks before committing.
+- Build a dependency graph and run one fresh packaged `unit-implementer` for each initial unit attempt with `subagent_spawn`; never implement inline or use the generic builtin `worker`.
+- Batch dependency-ready units only when exact file ownership is known and pairwise disjoint; sharing a file is forbidden even when hunks differ, and uncertain or overlapping units stay sequential.
+- Spawn the whole batch, then use one `subagent_wait` call for all run IDs. The parent performs no edits, validation, staging, or commits until every member settles.
+- Each packet carries the explicit-request/artifact/repository authority order, a private compliance checklist, exact boundaries, repository-pattern and test-discovery validation, and evidence-first escalation.
+- The parent answers routine `need_decision` escalations autonomously. Independent bounded corrections may batch under the same ownership rules while each attempt makes measurable progress.
+- Validate and atomically commit settled passing units in deterministic unit-map/dependency order, staging only that unit's changes and leaving other batch diffs unstaged. A failed unit blocks only its dependents; unrelated ready units continue.
+- Continue through all eligible implementation units. Contact the user only for unsafe or irreversible actions, credentials/permissions, unresolved product decisions, staged or overlapping foreign work, unavailable prerequisites, or no-progress corrections.
+- Do not invent unsupported timeout, turn-budget, tool-budget, context, output, or artifact parameters; bounded packets define scope.
+- The parent validates repository state, diff scope, and checks before committing. Metadata mutation is a hard blocker and foreign or unauthorized Git state is never automatically rewritten or reverted.
 - The implementer must never stage, commit, push, mutate refs/remotes/config, modify planning artifacts, or spawn subagents.
-- Stop on failed validation or contract violations. Do not retry, replace workers, or start correction loops automatically.
 - Never push or open a pull request unless separately requested.
 
 ### `yt-test-browser`
@@ -72,11 +76,13 @@ The package intentionally replaces heavier workflow systems with a simple cycle:
 ### `yt-review`
 
 - Accept patches, PRs, branches or refs, and working-tree targets.
-- Select `code-reviewer` alone for localized work, add `implementation-conformity-reviewer` for standard cross-concern work, and add `code-security-reviewer` for complex or sensitive work.
+- Spawn exactly one packaged `code-reviewer`, wait exactly once, and return exactly one report in one bounded pass.
+- The single reviewer covers intent conformity, correctness, regressions, security-sensitive concerns, tests, and maintainability.
+- Never invoke a second review after fixes or loop until no findings.
 - Review is report-only: no edits, staging, commits, pushes, comments, labels, or autofixes.
 - Detect observable local mutation and compare remote evidence only when safe read-only APIs are available.
 - Treat configured role overrides and unobservable remote-only effects as trust boundaries.
-- Return one deduplicated P0–P3 report and only suggest `yt-work` when fixes are useful.
+- Return one P0–P3 report and only suggest `yt-work` when fixes are useful.
 
 ## Repository layout
 

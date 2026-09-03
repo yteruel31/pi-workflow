@@ -43,11 +43,15 @@ A unit is dependency-ready only when all of its dependencies have passed and bee
 
 Inspect available profiles with `subagent_agents`. Require `unit-implementer` to report `source: "package"`, `package: "pi-workflow"`, and the exact tools `read, grep, find, ls, bash, edit, write, contact_supervisor`; a higher-precedence override, missing `tools` metadata, or any mismatch must stop before mutation as an unavailable-prerequisite hard blocker. Never select the generic builtin `worker` or implement inline.
 
-For each unit, run one fresh packaged implementer for the initial attempt. The parent may batch multiple dependency-ready independent units only when their declared exact file ownership is known and pairwise disjoint. File ownership is the concurrency boundary: hunk-level separation within one file is insufficient, and units with overlapping or uncertain paths remain sequential. Each active child exclusively owns its packet's paths even though other children may concurrently own different paths.
+For each unit, run one fresh packaged implementer for the initial attempt. The parent may batch multiple dependency-ready independent units only when their declared exact file ownership is known and pairwise disjoint. File ownership remains the integration boundary: hunk-level separation within one file is insufficient, and units with overlapping or uncertain paths remain sequential. Concurrent implementers must never share a working tree.
 
-Immediately before a sequential attempt or ready batch, capture one common Git metadata snapshot: expected `HEAD`, current branch, the complete staged/index state, all local refs, and redacted remote configuration or URLs. Never retain credentials. Spawn the whole eligible batch with one `subagent_spawn` call per unit, then make exactly one `subagent_wait` call containing all returned run IDs. For a sequential attempt, that batch has one run ID. The parent must not edit, validate, stage, commit, or perform other work while any batch member is active; wait until the entire batch settles.
+Immediately before a sequential attempt, capture a Git metadata snapshot: expected `HEAD`, current branch, the complete staged/index state, all local refs, and redacted remote configuration or URLs. Never retain credentials. A sequential attempt uses the trusted primary worktree as `working_dir` and follows the existing one-run validation and commit contract.
 
-Call `subagent_spawn` with `agent: "unit-implementer"`, a concise attempt name, the trusted repository as `working_dir`, and a complete bounded packet. Do not invent unsupported context, output, artifact, timeout, turn-budget, or tool-budget parameters; packet scope is the delivery boundary.
+For a proposed parallel batch, record one committed batch-base `HEAD`. The parent must create a private temporary parent directory outside the repository with mode 700, reject unsafe or symlinked locations, and create one detached worktree per unit at that exact batch base. Use `git -c core.hooksPath=/dev/null worktree add --detach <path> <batch-base>` (or an equivalent command that disables checkout hooks); checkout filters and repository Git configuration remain trusted prerequisites. The parent, not a child, exclusively creates and removes these worktrees. If safe worktree creation or decisive isolated validation is unavailable for a proposed unit, omit it from the parallel batch and run it sequentially in the primary worktree instead; this fallback is not a hard blocker.
+
+After all parent setup and before spawning children, snapshot each isolated worktree's `HEAD`, index, tracked and untracked state and snapshot shared repository metadata: the primary branch and `HEAD`, complete primary index, all local refs, registered worktrees, and redacted remote configuration or URLs. Account for the newly parent-created worktree registrations. Spawn the whole eligible batch with one `subagent_spawn` call per unit, then make exactly one `subagent_wait` call containing all returned run IDs. For a sequential attempt, that batch has one run ID. The parent must not edit, validate, stage, commit, or perform other work while any batch member is active; wait until the entire batch settles.
+
+Call `subagent_spawn` with `agent: "unit-implementer"`, a concise attempt name, the unit's trusted isolated worktree as `working_dir` for a parallel batch (or the primary worktree for a sequential attempt), and a complete bounded packet. Do not invent unsupported context, output, artifact, timeout, turn-budget, or tool-budget parameters; packet scope is the delivery boundary.
 
 Each initial or correction packet must include:
 
@@ -56,7 +60,8 @@ Each initial or correction packet must include:
 - the relevant diff, check evidence, or diagnosed defect for a correction attempt;
 - instructions to read repository guidance and turn every goal, path, artifact, scenario, and command into a private compliance checklist;
 - repository-pattern and test-discovery validation before editing;
-- focused scenarios, verification commands, foreign-change baseline, and ownership boundaries;
+- focused scenarios, verification commands, foreign-change baseline, ownership boundaries, and whether the attempt is isolated or sequential;
+- for an isolated attempt, its immutable batch-base commit and parent snapshot, plus instructions that every check runs there and any check/build-generated path outside declared ownership is a contract violation;
 - instructions to choose the smallest reversible repository-consistent option for ordinary uncertainty, record it, and escalate with `contact_supervisor` and `reason: "need_decision"` only when evidence cannot safely resolve the issue.
 
 The parent answers child `need_decision` escalations itself whenever the request, artifact, or repository evidence resolves them, records the answer, and lets the child continue. The parent normally decides without involving the user. It contacts the user only for a listed hard blocker.
@@ -67,33 +72,37 @@ Do not use chains, resume, review loops, or management actions. `pi-toolbox`, `s
 
 ## Parent validation and correction
 
-After the whole batch settles, process its units in deterministic unit-map/dependency order. For each attempt:
+After the whole batch settles, validate every member in its isolated worktree before integrating any member. For each attempt:
 
-1. first compare `HEAD`, branch, the complete staged/index state, local refs, and redacted remote configuration exactly with the common pre-batch snapshot, accounting only for parent commits already made while processing earlier settled members;
-2. treat any metadata delta as a hard contract blocker: do not rewrite history or state, revert it, retry, replace the implementer, stage, or commit;
-3. inspect status and diff against the packet and foreign-change baseline;
-4. confirm no unrelated, unexplained, out-of-scope, pre-existing, or foreign change was absorbed or modified;
-5. run decisive focused checks and inspect their output;
-6. verify every changed hunk has unambiguous unit ownership.
+1. compare the isolated `HEAD`, complete index and status, and shared refs, worktree registrations, and redacted remote configuration with the post-setup snapshots;
+2. treat any unexpected metadata delta as a hard contract blocker: do not rewrite history or state, revert it, retry, replace the implementer, stage, or commit;
+3. inspect the isolated status and complete result against the packet and batch base, including tracked edits and deletions, binary changes, and owned untracked files; plain `git diff` is insufficient because it omits untracked content;
+4. confirm no unrelated, unexplained, out-of-scope, generated, or foreign path was created or modified;
+5. run decisive focused checks in that same isolated worktree, inspect their output, and recheck status so check/build-generated files outside ownership are contract violations;
+6. verify every changed hunk has unambiguous unit ownership and validation is decisive enough for integration.
 
-Configured role overrides and remote-only actions are a trust boundary; disclose what cannot be observed.
+Configured role overrides and remote-only actions are a trust boundary; disclose what cannot be observed. If isolation or decisive validation proves unavailable without a child violation, do not integrate that isolated result; when safe, discard only a clean parent-created worktree and rerun the unit sequentially in the uncontaminated primary worktree.
 
-For failed checks, partial implementation, plan mismatch, or out-of-scope work that does not involve foreign or Git-metadata mutation, diagnose the concrete defect and launch a fresh bounded correction attempt. Corrections for multiple independent failed units may form another batch only under the same dependency-ready and disjoint exact-file rules. A correction packet must narrow the issue and preserve approved work; it must never authorize rewriting or reverting foreign changes or unauthorized Git state. Compare each attempt with the previous one using concrete evidence such as fewer failing assertions, a smaller scope delta, or newly passing checks. Continue bounded corrections while measurable progress occurs. If an attempt makes no measurable progress, block that unit and its dependents rather than looping.
+For failed checks, partial implementation, or plan mismatch that does not involve foreign or Git-metadata mutation, diagnose the concrete defect and launch a fresh bounded correction attempt. A correction for a parallel unit uses a fresh implementer in that unit's same isolated worktree. Independent isolated corrections may batch under the same dependency-ready rules. A correction packet must narrow the issue and preserve approved work; it must never authorize rewriting or reverting foreign changes or unauthorized Git state. Compare each attempt with the previous one using concrete evidence such as fewer failing assertions, a smaller scope delta, or newly passing checks. Continue bounded corrections while measurable progress occurs. If an attempt makes no measurable progress, block that unit and its dependents rather than looping.
 
-A failed unit blocks only its transitive dependents. Preserve its uncommitted changes without absorbing them into another unit; unrelated dependency-ready units may continue when their ownership remains disjoint.
+A failed unit blocks only its transitive dependents. Preserve and report a blocked dirty isolated worktree as evidence; never remove it automatically. Unrelated dependency-ready units may continue when their ownership remains disjoint.
 
-## Parent-owned atomic commit
+## Parent-owned integration and atomic commit
 
-For each passing settled unit, commit separately in deterministic unit-map/dependency order:
+Only after the whole parallel batch has settled and every passing member has decisive isolated validation, integrate passing units serially in deterministic unit-map/dependency order. Before each integration, verify that the primary worktree and shared Git metadata equal their expected state, accounting only for earlier parent integrations and cleanups; unexpected changes are hard blockers.
 
-1. stage only that unit's owned paths or hunks, leaving every other batch member's diff unstaged;
-2. inspect the complete staged diff and staged path list;
-3. confirm the index contains no pre-existing or unrelated change;
-4. create one conventional atomic commit reflecting the unit goal;
-5. inspect the resulting commit and verify it contains only that unit's changes;
-6. compare the remaining working tree with the foreign-change baseline and expected uncommitted batch diffs before processing the next unit.
+For each passing isolated unit:
 
-Never let a child create the commit. Never push or open a pull request unless the user separately requests it.
+1. produce and inspect a complete binary-safe patch or equivalent materialization from its batch base, including tracked edits and deletions, binary content, and owned untracked files, limited exactly to owned paths; reject any other path, and never rely on plain `git diff`, which omits untracked content;
+2. verify clean applicability to the current primary worktree before mutation, then apply the complete result mechanically without bringing over the isolated index or unrelated state;
+3. stage only that unit's owned paths, inspect the complete staged diff and staged path list, and confirm the index contains no pre-existing or unrelated change;
+4. run any required integration check in the now-uncontaminated primary worktree and reject any generated path outside ownership;
+5. create one conventional atomic commit reflecting the unit goal, then inspect the resulting commit and verify it contains only that unit's changes;
+6. verify the primary tree and metadata against the expected foreign-change baseline plus committed integrations, and prove that the commit reproduces the complete isolated unit result—including tracked edits and deletions, binary content, and owned untracked additions—with no unexpected paths. Later peer patches remain only in their isolated worktrees until their turn, so checks and commit hooks never see uncommitted peer diffs.
+
+After that proof, the parent may remove that private parent-created isolated worktree even though it still contains the now-integrated unit-owned diff; force removal is authorized only at this point because the full isolated result is proven captured and integrated. Cleanup must remain bounded to that worktree, use hook-disabled safe removal where applicable, and remove the private temporary parent directory only when empty. Never remove or discard an unintegrated, failed, blocked, foreign, ambiguous, or unexpectedly dirty worktree. Retain and report failed or blocked dirty worktrees as evidence. Sequential units continue to use the primary worktree under the existing validation and atomic-commit contract.
+
+Never let a child create the commit or add/remove worktrees. Never push or open a pull request unless the user separately requests it.
 
 ## Completion
 

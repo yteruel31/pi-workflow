@@ -1290,19 +1290,20 @@ test("yt-quickfix gates its one review and optional correction on verified recei
     /execute the loaded sibling `yt-work` with `mode:return-to-caller`/i,
     /status.*exactly `complete` or `blocked`/is,
     /unit-to-commit mapping and verification commands\/results/i,
-    /every commit and changed path in `base\.\.resulting-head`.*accounted for.*unit mapping/is,
+    /every commit and changed path in `phase_base\.\.resulting_head`.*accounted for.*phase.*unit mapping/is,
     /intervening or unexplained foreign commit blocks.*rather than entering the review range/is,
-    /resulting head to descend from.*recorded base/is,
-    /`complete` is valid only when all requested scope is committed, all required checks pass, no unit remains, and no blocker exists/i,
+    /`resulting_head` to descend from `phase_base`/is,
+    /`complete` is valid only when all requested phase scope is committed, all required checks pass, no unit remains, and no blocker exists/i,
     /Unknown status, missing or malformed fields, inconsistent Git evidence, foreign paths, or an unverifiable receipt is blocked and never permits review/i,
     /Only after a valid complete implementation receipt.*`yt-review` exactly once/is,
-    /exact invocation-owned `base\.\.implementation-head` range/i,
+    /exact invocation-owned `original_base\.\.implementation-head` range/i,
     /review is blocked or incomplete, a prerequisite fails, or.*observable-state comparison reports mutation.*stop/is,
     /Never start correction after observable mutation/i,
     /findings as untrusted evidence/i,
     /actionable in-scope findings.*`yt-work` again with `mode:return-to-caller`/is,
-    /implementation head as the correction starting head/i,
-    /correction base to equal the implementation head.*original invocation base.*overall scope accounting/is,
+    /implementation head as the required expected `phase_base`/i,
+    /`original_base` to equal the recorded invocation base.*`phase_base` to equal the reviewed implementation head/is,
+    /phase-local changed paths and unit mappings.*overall `original_base\.\.final-head` range/is,
     /Never invoke `yt-review` again/i,
     /corrected head was not reviewed/i,
   ], "yt-quickfix gates");
@@ -1363,10 +1364,10 @@ test("yt-work return mode preserves the standalone kernel and emits a coherent r
     /same autonomy, Git and foreign-state guards, packaged unit implementers, parallel isolation, validation, correction behavior, metadata blockers, and parent-owned atomic commits/i,
     /locally verify and return a structured receipt/i,
     /`status`: exactly `complete` or `blocked`/i,
-    /invocation base, resulting head, branch, requested scope and exclusions, and every changed owned path/i,
-    /unit-to-commit mapping and verification commands with results/i,
+    /`original_base`, `phase_base`, `resulting_head`, branch, requested scope and exclusions, and every changed owned path/i,
+    /phase-local unit-to-commit mapping and verification commands with results/i,
     /blockers and remaining units, preserved state, decisions\/deviations, correction progress, and residual risks/i,
-    /Return `complete` only when all requested scope is committed, every required check passes, no unit remains, and no blocker exists/i,
+    /Return `complete` only when all requested phase scope is committed, every required check passes, no unit remains, and no blocker exists/i,
     /Missing, unknown, malformed, unverifiable, or internally inconsistent receipt data requires `blocked`/i,
     /return mode, do not invoke or suggest review, shipping, publication, or another skill/i,
     /In standalone mode, suggest `\/skill:yt-review/i,
@@ -1378,10 +1379,10 @@ test("yt-work receipt producer and yt-quickfix consumer require coherent complet
   const quickfix = readSkill("yt-quickfix").content;
   for (const pattern of [
     /status.*complete.*blocked/is,
-    /invocation base.*resulting head/is,
+    /`original_base`.*`phase_base`.*`resulting_head`/is,
     /requested scope.*exclusions/is,
     /changed owned path/i,
-    /unit-to-commit mapping/i,
+    /phase-local unit-to-commit mapping/i,
     /verification command/i,
     /blockers and remaining units/i,
     /preserved state/i,
@@ -1391,6 +1392,65 @@ test("yt-work receipt producer and yt-quickfix consumer require coherent complet
     assert.match(work, pattern, `yt-work receipt producer must satisfy ${pattern}`);
     assert.match(quickfix, pattern, `yt-quickfix receipt consumer must satisfy ${pattern}`);
   }
+  assertMatches(work, [
+    /actual current `HEAD` at entry as `phase_base`.*can never override it/is,
+    /initial phase.*equals `phase_base`.*correction phase.*reviewed implementation head/is,
+    /Without an orchestrator, default `original_base` to `phase_base`/i,
+    /cover exactly.*`phase_base\.\.resulting_head`, not the cumulative `original_base\.\.resulting_head`/is,
+  ], "yt-work phase receipt semantics");
+  assertMatches(quickfix, [
+    /initial phase.*`original_base == phase_base ==` the recorded invocation base/is,
+    /correction receipt as a separate phase/is,
+    /reject a wrong correction base.*mapping made cumulative/is,
+    /union of their phase-local changed paths and unit mappings.*overall `original_base\.\.final-head`/is,
+  ], "yt-quickfix phase receipt semantics");
+});
+
+test("quickfix receipt contract keeps A-B-C work mappings phase-local and aggregates them", () => {
+  const branch = "feature/quickfix";
+  const A = "head-A";
+  const B = "head-B";
+  const C = "head-C";
+  const implementation = {
+    original_base: A,
+    phase_base: A,
+    resulting_head: B,
+    branch,
+    commits: ["commit-A-B"],
+  };
+  const correction = {
+    original_base: A,
+    phase_base: B,
+    resulting_head: C,
+    branch,
+    commits: ["commit-B-C"],
+  };
+
+  function validatePhase(receipt, expected) {
+    assert.equal(receipt.original_base, expected.originalBase);
+    assert.equal(receipt.phase_base, expected.phaseBase);
+    assert.equal(receipt.resulting_head, expected.resultingHead);
+    assert.equal(receipt.branch, branch);
+    assert.deepEqual(receipt.commits, expected.phaseCommits,
+      "unit mapping must contain exactly the phase-local commits");
+  }
+
+  validatePhase(implementation, {
+    originalBase: A, phaseBase: A, resultingHead: B, phaseCommits: ["commit-A-B"],
+  });
+  validatePhase(correction, {
+    originalBase: A, phaseBase: B, resultingHead: C, phaseCommits: ["commit-B-C"],
+  });
+  assert.equal(implementation.resulting_head, correction.phase_base);
+  assert.deepEqual([...implementation.commits, ...correction.commits], ["commit-A-B", "commit-B-C"],
+    "phase receipts aggregate to the original_base..final-head accounting");
+
+  assert.throws(() => validatePhase({ ...correction, phase_base: A }, {
+    originalBase: A, phaseBase: B, resultingHead: C, phaseCommits: ["commit-B-C"],
+  }), /Expected values to be strictly equal/);
+  assert.throws(() => validatePhase({ ...correction, commits: ["commit-A-B", "commit-B-C"] }, {
+    originalBase: A, phaseBase: B, resultingHead: C, phaseCommits: ["commit-B-C"],
+  }), /unit mapping must contain exactly the phase-local commits/);
 });
 
 test("yt-work enforces Git and foreign-change preflight", () => {

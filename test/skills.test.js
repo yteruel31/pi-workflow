@@ -375,9 +375,11 @@ test("README documents dispatch behavior, prerequisites, and its fallback except
     /distinct, visible Herdr tabs/i,
     /maximum of five/i,
     /one global confirmation/i,
-    /Brainstorm and plan may suggest dispatch only for multiple immediately independent units that would benefit from separate visible sessions/i,
-    /otherwise brainstorm suggests `yt-plan` and plan suggests `yt-work`/i,
-    /Suggestions are optional, and no skill starts the next command automatically/i,
+    /`yt-brainstorm` has one narrow confirmed handoff/i,
+    /final confirmation explicitly warns.*dedicated Orca workspace.*normal interactive Pi.*installed `yt-plan`/is,
+    /synthesis-only or PRD approval does not override/i,
+    /All other suggestions remain optional/i,
+    /no other skill starts the next command automatically/i,
     /Read-only units use the current project cwd/i,
     /implementation units require Git.*separate branches and worktrees/is,
     /auto-start with no focus/i,
@@ -392,6 +394,41 @@ test("README documents dispatch behavior, prerequisites, and its fallback except
     /Pi-only/i,
     /no commands, extensions, converters, or cross-harness compatibility layer/i,
   ], "README dispatch documentation");
+});
+
+test("README and CLAUDE document the narrow external Orca planning handoff", () => {
+  const readme = readFileSync(join(root, "README.md"), "utf8");
+  const guidance = readFileSync(join(root, "CLAUDE.md"), "utf8");
+
+  assertMatches(readme, [
+    /one narrow confirmed handoff/i,
+    /explicit consent.*refusal is respected/is,
+    /Optional PRD persistence never delays/i,
+    /separately installed Orca, Git, and Pi.*external prerequisites, not package dependencies/is,
+    /canonical absolute Git identity rather than trusting UI selection/i,
+    /inspects staged, unstaged, and untracked source status without copying dirty changes/i,
+    /repository default base/i,
+    /`ORCA_CLI_COMMAND`.*`orca-ide` rather than GNOME `orca`/is,
+    /Verification is read-only.*does not install or reconfigure.*selected destination base or parent.*rather than assuming source-cwd settings apply/is,
+    /separate destination section with the actual configured default or explicitly authorized base\/parent plus resolved destination ref\/commit/i,
+    /one agent-first `worktree create.*<default-no-parent-or-authorized-selection>.*--agent pi --prompt.*--setup skip --json`/is,
+    /workspace id\/path, startup terminal handle when known, and launch evidence/i,
+    /stops without waiting, polling, collecting output, planning inline, implementing, invoking `yt-work`/i,
+    /Partial resources are preserved.*without blind retries or duplicate sends/is,
+    /trusted prerequisites.*`--setup skip` does not promise zero external effects/is,
+  ], "README brainstorm handoff");
+
+  assertMatches(guidance, [
+    /except that `yt-brainstorm` launches one dedicated Orca `yt-plan` workspace.*explicitly consents/is,
+    /warn that approval launches.*normal interactive Pi planning session/is,
+    /never infer launch consent from synthesis-only or PRD approval/i,
+    /external Orca, Git, and Pi prerequisites/i,
+    /canonical repository explicitly.*inspect source status.*actual configured default base/is,
+    /destination-applicable Pi discovery\/settings read-only without installing or reconfiguring/is,
+    /source ref separately from the actual default or explicitly authorized destination base\/parent and resolved ref\/commit/i,
+    /one agent-first Orca worktree create operation/i,
+    /Preserve partial resources.*without retrying, monitoring, orchestrating, planning inline, implementing, or invoking `yt-work`/is,
+  ], "CLAUDE brainstorm handoff");
 });
 
 test("README documents standalone report-only browser validation and its prerequisite", () => {
@@ -492,17 +529,97 @@ test("yt-test-browser defines the standalone external-CLI browser testing contra
   assert.doesNotMatch(content, /\/skill:yt-(?:brainstorm|dispatch|plan|work|review)/i);
 });
 
-test("yt-brainstorm conditionally suggests dispatch without invoking either next skill", () => {
+test("yt-brainstorm launches planning only through the warned final consent gate", () => {
   const { content } = readSkill("yt-brainstorm");
 
   assertMatches(content, [
-    /confirmed brainstorm contains multiple immediately independent units/i,
-    /benefit from separate visible sessions/i,
-    /optionally suggest `\/skill:yt-dispatch <brainstorm-or-artifact>`/i,
-    /Otherwise, end by suggesting `\/skill:yt-plan <request-or-prd-path>` when ordinary technical planning is useful/i,
-    /Dispatch is never mandatory/i,
-    /Never invoke either skill automatically/i,
-  ], "yt-brainstorm completion");
+    /At this final confirmation, explicitly warn.*validate prerequisites.*dedicated Orca workspace.*normal interactive Pi session.*`yt-plan`/is,
+    /Ask whether the user authorizes that launch/i,
+    /synthesis-only approval or PRD approval is not launch consent.*refused/is,
+    /respect any explicit refusal and create nothing/i,
+    /Only after the final synthesis is confirmed and launch consent is explicit/i,
+    /sole narrow exception to the general no-automatic-chaining rule/i,
+    /PRD persistence is optional and must not delay an authorized handoff/i,
+  ], "yt-brainstorm consent");
+});
+
+test("yt-brainstorm preflights Orca, Git repository targeting, default base, and installed Pi skill", () => {
+  const { content } = readSkill("yt-brainstorm");
+
+  assertMatches(content, [
+    /exact value of `ORCA_CLI_COMMAND`.*`orca-dev`.*`orca-ide`.*otherwise `orca`/is,
+    /Never run literal `ORCA` or bare GNOME `orca`/i,
+    /`skills get orca-cli`.*complete live guide/is,
+    /no old-CLI fallback/i,
+    /`status --json`.*`open --json` once.*re-run `status --json`/is,
+    /canonical absolute top-level path.*identity from Git metadata, remotes, source cwd, current ref, and commit/is,
+    /Inspect staged, unstaged, and untracked source status.*source-only context.*without copying or summarizing dirty content/is,
+    /Never target a repository through current UI selection or inference alone/i,
+    /missing, ambiguous, not a valid checkout.*ask one focused question.*do not guess, clone, add, or switch/is,
+    /`repo show --repo path:<canonical-absolute-repo> --json`.*actual configured default base/is,
+    /`worktree list --repo path:<canonical-absolute-repo> --json`.*worktrees/is,
+    /existing Git branches and checkout paths/i,
+    /safe, short, collision-free slug/i,
+    /Omit `--base-branch` by default/i,
+    /Current source ref context is evidence.*never permission to stack/i,
+    /`skills installed --json`.*actual target environment's installed skill discovery and Pi settings.*installed, usable `yt-plan`/is,
+    /uncommitted or source-only.*is not proof/i,
+    /selected destination base or parent, not merely settings inherited from the source cwd/i,
+    /Do not install, update, enable, or reconfigure Pi, a skill, or destination settings/i,
+    /`enableSkillCommands` is enabled for the destination.*`\/skill:yt-plan <arguments>`/is,
+    /commands are disabled.*explicit initial instruction to load and follow that installed `yt-plan`/is,
+  ], "yt-brainstorm preflight");
+});
+
+test("yt-brainstorm creates one agent-first planning workspace with a complete literal prompt", () => {
+  const { content } = readSkill("yt-brainstorm");
+
+  assertMatches(content, [
+    /original user request and the final confirmed synthesis/i,
+    /actor, problem, intended outcome and value/i,
+    /every settled decision, scope item, non-goal, and success criterion/i,
+    /assumptions, open questions, and relevant repository or external evidence/i,
+    /canonical source repository, source cwd, current ref and commit.*staged, unstaged, or untracked source-only context/is,
+    /separate destination section naming the actual configured default base and resolved destination ref and commit.*explicitly authorized base\/parent.*resolved destination ref and commit/is,
+    /never describe the source ref as the destination selection/i,
+    /substantive context from any authorized artifact inline/i,
+    /label each artifact's provenance and destination availability.*source-only files/is,
+    /read its checkout's repository guidance.*use only the installed `yt-plan`.*do no implementation.*session output.*without silently creating artifacts/is,
+    /single literal argument.*begins `\/skill:yt-plan `/i,
+    /one literal `--prompt` argv value/i,
+    /Never interpolate it as shell code, use `eval`, or permit command, variable, glob, or newline expansion/i,
+    /ORCA worktree create --repo path:<canonical-absolute-repo> --name <safe-slug> <base-or-parent-selection> --agent pi --prompt <complete-prompt-as-one-literal-argv> --setup skip --json/,
+    /Use `--no-parent` for the default independent destination.*replace that selection only.*explicitly authorized/is,
+    /Do not follow this command with `terminal create` or `terminal send`/i,
+  ], "yt-brainstorm launch");
+});
+
+test("yt-brainstorm preserves partial handoffs and remains handoff-only", () => {
+  const { content } = readSkill("yt-brainstorm");
+
+  assertMatches(content, [
+    /does not plan inline, implement, invoke `yt-work`, orchestrate, supervise, wait for completion, or monitor/i,
+    /filters and repository Git configuration.*configured terminals.*trusted prerequisites/is,
+    /`--setup skip`.*does not guarantee zero external effects/i,
+    /Do not copy dirty tracked or untracked changes, secrets, credentials, or auto-commit context/i,
+    /creation partially fails or its result is ambiguous, preserve every resource/i,
+    /exact known identifiers, stage, and error/i,
+    /Do not blindly retry, recreate the workspace, send the prompt again, remove anything, or clean up/i,
+    /Read-only `worktree list`.*`terminal list` may be used once.*ambiguity recovery, not planner monitoring/is,
+    /After a successful launch, perform no reads, waits, polling, orchestration, output collection, follow-up messages, or planner supervision/i,
+    /complete `worktree.id`.*worktree path.*`startupTerminal.handle`.*launch evidence/is,
+    /planning was launched, never that the plan finished/i,
+  ], "yt-brainstorm partial failure");
+});
+
+test("the Orca planning handoff does not alter other skill contracts", () => {
+  for (const name of requiredSkillNames.filter((candidate) => candidate !== "yt-brainstorm")) {
+    const { content } = readSkill(name);
+    assert.doesNotMatch(content, /Confirmed Orca planning handoff|--agent pi --prompt/);
+  }
+
+  assertMatches(readSkill("yt-plan").content, [/Never invoke either skill automatically/i], "yt-plan unchanged chaining");
+  assertMatches(readSkill("yt-test-browser").content, [/Never invoke or automatically suggest another workflow skill/i], "yt-test-browser unchanged chaining");
 });
 
 test("all discovered skills have valid, matching frontmatter", () => {
@@ -648,8 +765,8 @@ test("yt-brainstorm stays product-only and offers an optional PRD", () => {
     /Confirm a concise synthesis/i,
     /docs\/prds\/YYYY-MM-DD-<slug>\.md/,
     /Do not design APIs, schemas, modules, migrations, or implementation sequencing\./,
-    /suggesting `\/skill:yt-plan/i,
-    /Never invoke the next skill automatically\./,
+    /`\/skill:yt-plan <request-or-prd-path>`.*optional/i,
+    /Outside this one confirmed Orca-to-`yt-plan` handoff, never invoke the next skill automatically\./,
   ], "yt-brainstorm");
 });
 

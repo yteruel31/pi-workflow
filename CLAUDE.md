@@ -18,7 +18,7 @@ The package intentionally replaces heavier workflow systems with a simple cycle:
 - Keep the repository Pi-native. Package only the ten named profiles documented below; do not add Claude Code commands, converters, marketplace infrastructure, or multi-harness compatibility layers.
 - Every skill must accept a direct request. A PRD, plan, or previous workflow stage is always optional.
 - Explicit user instructions take precedence over supplied artifacts; supplied artifacts take precedence over auto-discovered context.
-- Skills may suggest a next step but must never invoke it automatically.
+- Skills may suggest a next step but must never invoke it automatically, except that `yt-brainstorm` launches one dedicated Orca `yt-plan` workspace after the user confirms the final synthesis and explicitly consents to that warned launch.
 - Session output is the default. Create or update artifacts only when explicitly requested.
 - `pi-toolbox` v1.16.0 or newer is a required separately installed provider for `subagent_agents`, `subagent_spawn`, `subagent_wait`, named-profile discovery, and `tools` allowlist enforcement; its release must land before this workflow change. Before spawning, require package source `pi-workflow` and exact expected tool metadata so incompatible providers and user/project profile overrides fail closed. Dependent skills stop when a required tool or profile is unavailable; dispatch remains separate and has no hidden fallback.
 - Keep the package dependency-free unless a dependency is clearly necessary and explicitly approved.
@@ -30,7 +30,10 @@ The package intentionally replaces heavier workflow systems with a simple cycle:
 - Product framing only; do not plan implementation or edit code.
 - Ask exactly one focused question at a time when clarification is needed.
 - Use at most one `repo-researcher` and one local-only `learnings-researcher`, only when their evidence materially improves the result; external research stays in the parent session.
-- An optional PRD may be proposed or reused, never required or silently written.
+- An optional PRD may be proposed or reused, never required or silently written; optional persistence must not delay an approved planning handoff.
+- At final synthesis confirmation, warn that approval launches a dedicated Orca workspace and normal interactive Pi planning session. Respect refusal, and never infer launch consent from synthesis-only or PRD approval when refusal exists.
+- After explicit consent, require external Orca, Git, and Pi prerequisites; resolve the canonical repository explicitly, inspect source status, use its actual configured default base unless the user explicitly authorizes another base or parent, and verify destination-applicable Pi discovery/settings read-only without installing or reconfiguring anything before one agent-first Orca worktree create operation.
+- The handoff prompt is complete and self-contained, reports source ref separately from the actual default or explicitly authorized destination base/parent and resolved ref/commit, passes as one literal argument without shell interpolation, and excludes secrets and dirty changes. Preserve partial resources and report launch identifiers without retrying, monitoring, orchestrating, planning inline, implementing, or invoking `yt-work`.
 
 ### `yt-dispatch`
 

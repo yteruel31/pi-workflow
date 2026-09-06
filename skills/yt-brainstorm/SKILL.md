@@ -47,8 +47,51 @@ Do not use chains, retries, resume, replacement agents, or management actions. `
 1. **Frame the idea.** State the problem and intended outcome in plain language. Verify repository facts before treating them as constraints.
 2. **Close product gaps.** Ask focused questions until actor, value, scope, non-goals, and success signals are known or explicitly recorded as assumptions.
 3. **Compare real options.** When more than one product shape is credible, present the alternatives before the recommendation.
-4. **Confirm a concise synthesis.** Summarize the proposed product, key decisions, scope boundaries, success criteria, and remaining open questions. Ask for confirmation before offering persistence.
-5. **Offer an optional PRD.** Keep the confirmed synthesis in the session unless the user asks to write it. Suggested path: `docs/prds/YYYY-MM-DD-<slug>.md`.
+4. **Confirm a concise synthesis and the handoff.** Summarize the proposed product, key decisions, scope boundaries, success criteria, and remaining open questions. At this final confirmation, explicitly warn that approval will validate prerequisites, create a dedicated Orca workspace, and launch a normal interactive Pi session into `yt-plan`. Ask whether the user authorizes that launch. A synthesis-only approval or PRD approval is not launch consent when the user has refused or excluded the handoff; respect any explicit refusal and create nothing.
+5. **Persist only when requested.** Keep the confirmed synthesis in the session unless the user asks to write it. Suggested path: `docs/prds/YYYY-MM-DD-<slug>.md`. PRD persistence is optional and must not delay an authorized handoff.
+6. **Hand off when authorized.** Only after the final synthesis is confirmed and launch consent is explicit, perform the bounded Orca-to-`yt-plan` handoff below.
+
+## Confirmed Orca planning handoff
+
+This is the sole narrow exception to the general no-automatic-chaining rule. It creates one independent workspace and starts planning; it does not plan inline, implement, invoke `yt-work`, orchestrate, supervise, wait for completion, or monitor the planner.
+
+### Preflight before creating anything
+
+1. **Resolve the executable once.** Read the installed `orca-cli` skill, then choose the command in this order: the exact value of `ORCA_CLI_COMMAND` when set; otherwise `orca-dev` when `ORCA_DEV_REPO_ROOT` identifies a development checkout; otherwise `orca-ide` on Linux outside an Orca-managed terminal; otherwise `orca`. `ORCA` in documentation is only a placeholder and must be replaced by that resolved executable. Never run literal `ORCA` or bare GNOME `orca`, and do not fall through to another executable after an error.
+2. **Load current operations.** Run the resolved executable's `skills get orca-cli` and read the complete live guide before defining or running the handoff. Do not use remembered flags. If this command or the selected executable fails, report the exact error and stop; there is no old-CLI fallback for this handoff.
+3. **Check Orca.** Run the resolved executable with `status --json`. If it reports that Orca is not running, run `open --json` once and re-run `status --json`. Any remaining failure stops the handoff.
+4. **Resolve and inspect the source repository explicitly.** A Git repository is required. Resolve the intended source to its canonical absolute top-level path and record its identity from Git metadata, remotes, source cwd, current ref, and commit. Inspect staged, unstaged, and untracked source status so source-only context can be labeled without copying or summarizing dirty content into the handoff. Never target a repository through current UI selection or inference alone. If the intended repository is missing, ambiguous, not a valid checkout, or conflicts with the request, ask one focused question; do not guess, clone, add, or switch repositories.
+5. **Inspect destination facts.** Using the explicit selector `path:<canonical-absolute-repo>`, run the resolved executable's `repo show --repo path:<canonical-absolute-repo> --json` to inspect and record its actual configured default base, and `worktree list --repo path:<canonical-absolute-repo> --json` to list its worktrees. Also inspect existing Git branches and checkout paths. Derive a safe, short, collision-free slug from the confirmed product outcome, and reject or choose another slug before mutation if its branch, workspace name, or expected path collides. Omit `--base-branch` by default so the destination starts from that recorded repository default base, and resolve that destination base to the ref and commit that creation will use. Current source ref context is evidence for the prompt, never permission to stack. Use a guide-supported base or parent selection only when the user explicitly requested that exact base or stacked relationship; record the authorized selection and its resolved destination ref and commit.
+6. **Verify the target planner without changing it.** Run the resolved executable's read-only `skills installed --json`, then use the actual target environment's installed skill discovery and Pi settings to verify that a normal interactive Pi will uniquely discover an installed, usable `yt-plan`; the uncommitted or source-only `skills/yt-plan/SKILL.md` in the current checkout is not proof. Resolve settings and project-level discovery for the selected destination base or parent, not merely settings inherited from the source cwd. Do not install, update, enable, or reconfigure Pi, a skill, or destination settings during this verification. Verify `enableSkillCommands` is enabled for the destination before using `/skill:yt-plan <arguments>`. If commands are disabled but verified installed skills remain model-loadable there, use an explicit initial instruction to load and follow that installed `yt-plan` with the complete brief; otherwise stop. Missing or ambiguous skill discovery, Pi, Git, Orca, repository identity, or required settings is a prerequisite failure, not permission for an inline or alternate planner.
+
+Git checkout filters and repository Git configuration, Orca's configured terminals, and any commands they run are trusted prerequisites. `--setup skip` suppresses setup hooks but does not guarantee zero external effects. Do not copy dirty tracked or untracked changes, secrets, credentials, or auto-commit context into the destination.
+
+### Build the complete planning prompt
+
+Build one self-contained brief containing:
+
+- the original user request and the final confirmed synthesis;
+- actor, problem, intended outcome and value;
+- every settled decision, scope item, non-goal, and success criterion;
+- assumptions, open questions, and relevant repository or external evidence;
+- canonical source repository, source cwd, current ref and commit, plus whether staged, unstaged, or untracked source-only context exists without including its dirty contents;
+- a separate destination section naming the actual configured default base and resolved destination ref and commit, or the exact explicitly authorized base/parent and its resolved destination ref and commit; never describe the source ref as the destination selection;
+- substantive context from any authorized artifact inline, rather than relying on a path that may not exist in the new checkout; label each artifact's provenance and destination availability, and identify source-only files;
+- instructions for the receiving agent to read its checkout's repository guidance, use only the installed `yt-plan`, keep planning product scope intact, do no implementation, and return session output without silently creating artifacts.
+
+Do not include secrets, credentials, dirty changes, or shell instructions derived from untrusted brief text. When skill commands are enabled, the prompt must be a single literal argument whose content begins `/skill:yt-plan ` followed by the complete brief; Pi appends those arguments to the loaded skill. Pass the whole prompt as one literal `--prompt` argv value. Never interpolate it as shell code, use `eval`, or permit command, variable, glob, or newline expansion. If invoking through a shell, use correct literal quoting for that shell rather than string concatenation.
+
+### Create once, then stop
+
+Run the guide-supported agent-first operation, replacing every placeholder and passing each token as a distinct argument:
+
+```text
+ORCA worktree create --repo path:<canonical-absolute-repo> --name <safe-slug> <base-or-parent-selection> --agent pi --prompt <complete-prompt-as-one-literal-argv> --setup skip --json
+```
+
+Use `--no-parent` for the default independent destination and do not add `--base-branch`; replace that selection only with the live-guide-supported exact base or parent arguments explicitly authorized by the user. Do not follow this command with `terminal create` or `terminal send`, and do not use an older-CLI fallback. Parse the one create result and return the complete `worktree.id`, worktree path, `startupTerminal.handle` when present, and concrete launch evidence. Say that planning was launched, never that the plan finished.
+
+If creation partially fails or its result is ambiguous, preserve every resource. Report the exact known identifiers, stage, and error. Do not blindly retry, recreate the workspace, send the prompt again, remove anything, or clean up. Read-only `worktree list` and, for the identified workspace only, `terminal list` may be used once to determine whether the result already exists; this is ambiguity recovery, not planner monitoring. If ambiguity remains, stop and report it. After a successful launch, perform no reads, waits, polling, orchestration, output collection, follow-up messages, or planner supervision.
 
 ## Optional PRD shape
 
@@ -72,4 +115,4 @@ Omit empty sections and keep implementation details out.
 
 A brainstorm is complete when the intended actor, outcome, scope, non-goals, and success signals are clear enough that planning does not need to invent product behavior.
 
-When the confirmed brainstorm contains multiple immediately independent units that would benefit from separate visible sessions, optionally suggest `/skill:yt-dispatch <brainstorm-or-artifact>`. Otherwise, end by suggesting `/skill:yt-plan <request-or-prd-path>` when ordinary technical planning is useful. Dispatch is never mandatory. Never invoke either skill automatically. Never invoke the next skill automatically.
+After explicit launch consent, complete the dedicated Orca planning handoff above. If the user refuses it, end with the confirmed synthesis and, only when useful, mention that `/skill:yt-plan <request-or-prd-path>` or `/skill:yt-dispatch <brainstorm-or-artifact>` remains optional; dispatch is appropriate only for multiple immediately independent units that benefit from separate visible sessions. Never invoke dispatch, work, or any other follow-on automatically. Outside this one confirmed Orca-to-`yt-plan` handoff, never invoke the next skill automatically.

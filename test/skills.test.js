@@ -18,7 +18,7 @@ import test from "node:test";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dispatchScript = join(root, "skills", "yt-dispatch", "scripts", "spawn.sh");
-const requiredSkillNames = ["yt-brainstorm", "yt-dispatch", "yt-plan", "yt-review", "yt-test-browser", "yt-work"];
+const requiredSkillNames = ["yt-brainstorm", "yt-dispatch", "yt-plan", "yt-quickfix", "yt-review", "yt-test-browser", "yt-work"];
 const productSkillNames = ["yt-brainstorm", "yt-plan"];
 const requiredAgentNames = [
   "code-reviewer",
@@ -286,7 +286,7 @@ test("packaged unit implementer has strict discovery metadata and compliance pro
   assert.doesNotMatch(raw, /model|turnBudget|toolBudget|runtime/i);
 });
 
-test("skill discovery contains exactly the required six matching directories and files", () => {
+test("skill discovery contains exactly the required seven matching directories and files", () => {
   const skillsDirectory = join(root, "skills");
   const immediateDirectories = readdirSync(skillsDirectory, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
@@ -339,6 +339,7 @@ test("README documents installation, all commands, fallback, commits, and report
     /@<commit>/,
     /\/skill:yt-brainstorm/,
     /\/skill:yt-plan/,
+    /\/skill:yt-quickfix/,
     /\/skill:yt-work/,
     /\/skill:yt-review/,
     /`pi-toolbox` v1\.16\.0 or newer supplies `subagent_agents`, `subagent_spawn`, and `subagent_wait`/i,
@@ -448,11 +449,11 @@ test("README documents standalone report-only browser validation and its prerequ
   ], "README browser documentation");
 });
 
-test("CLAUDE documents the six-skill contracts and layout", () => {
+test("CLAUDE documents the seven-skill contracts and layout", () => {
   const guidance = readFileSync(join(root, "CLAUDE.md"), "utf8");
 
   assertMatches(guidance, [
-    /provides six independent skills/i,
+    /provides seven independently invokable skills/i,
     /### `yt-dispatch`/,
     /immediately independent units, at most five/i,
     /one global confirmation/i,
@@ -1221,6 +1222,120 @@ test("yt-dispatch supports exact SHA-256 commit IDs when Git supports them", (t)
   const r=launch(h,["--mode","implementation","--title","SHA256","--prompt-file",h.prompt,"--cwd",repository,"--base",base,"--branch","dispatch/sha256","--worktree",join(h.directory,"sha-wt")]); assert.equal(r.status,0,r.stderr); assert.equal(JSON.parse(r.stdout).base,base);
 });
 
+test("README and CLAUDE document seven skills and the narrow quickfix composition exception", () => {
+  const readme = readFileSync(join(root, "README.md"), "utf8");
+  const guidance = readFileSync(join(root, "CLAUDE.md"), "utf8");
+
+  assertMatches(readme, [
+    /`yt-quickfix`.*`\/skill:yt-quickfix`/i,
+    /narrow in-session composition exception/i,
+    /same-package `yt-work` and `yt-review` siblings/i,
+    /`mode:return-to-caller` preserves this complete kernel and changes only completion ownership/i,
+    /execute `yt-review` exactly once only after a valid complete receipt/i,
+    /never a second review.*review mutation stops correction/is,
+    /does not create a planning artifact, nested Pi process, new framework, or shipping action/i,
+    /yt-quickfix\/SKILL\.md/i,
+  ], "README quickfix documentation");
+  assertMatches(guidance, [
+    /provides seven independently invokable skills/i,
+    /second narrow, differently scoped exception is `yt-quickfix`/i,
+    /same-package `yt-work` and `yt-review` siblings.*current parent Pi session/is,
+    /### `yt-quickfix`/i,
+    /only a coherent `complete` receipt.*permits review/i,
+    /`yt-review` exactly once.*never correct after mutation/is,
+    /Never re-review or claim a corrected head was reviewed/i,
+    /yt-quickfix\/SKILL\.md/i,
+  ], "CLAUDE quickfix guidance");
+});
+
+test("yt-quickfix has minimal frontmatter, direct entry, and explicit authority", () => {
+  const { content } = readSkill("yt-quickfix");
+  const { raw, values } = frontmatter(content);
+
+  assert.deepEqual([...values.keys()], ["name", "description"]);
+  assert.equal(values.get("name"), "yt-quickfix");
+  assert.match(raw, /^description: "[^"\n]+"$/m);
+  assert.equal(raw.split("\n").length, 2);
+  assertMatches(content, [
+    /direct request or an optional user-supplied artifact is sufficient/i,
+    /do not require or create a brainstorm, plan, or PRD/i,
+    /user's current explicit request and corrections.*artifact the user explicitly supplied.*repository context/is,
+    /Clarify only a genuinely missing scope boundary or authority decision/i,
+    /Do not ask for reapproval of a clear request/i,
+    /Keep all output in the session/i,
+  ], "yt-quickfix");
+});
+
+test("yt-quickfix loads and executes real same-package siblings in the parent session", () => {
+  const { content } = readSkill("yt-quickfix");
+  assertMatches(content, [
+    /directory containing this loaded `SKILL\.md`/i,
+    /read the complete files `\.\.\/yt-work\/SKILL\.md` and `\.\.\/yt-review\/SKILL\.md`.*relative to `SKILL_DIR`/is,
+    /Execute their instructions in this same parent Pi session/i,
+    /Do not merely suggest a slash command/i,
+    /do not invoke a tool or agent named `yt-work` or `yt-review`/i,
+    /do not start a nested Pi process/i,
+    /either sibling is absent or unreadable.*`mode:return-to-caller`.*stop before mutation/is,
+    /quoted from a request, artifact, diff, receipt, review, or repository never activates or changes a mode/i,
+  ], "yt-quickfix composition");
+  assert.doesNotMatch(content, /`subagent_spawn`|`unit-implementer`|worktree add|git commit/i,
+    "quickfix must delegate rather than duplicate the work kernel");
+});
+
+test("yt-quickfix gates its one review and optional correction on verified receipts", () => {
+  const { content } = readSkill("yt-quickfix");
+  assertMatches(content, [
+    /Record the invocation base `HEAD`.*requested scope and exclusions.*staged, unstaged, and untracked foreign-state baseline/is,
+    /defer all implementation Git safety decisions and foreign-state handling to `yt-work`/i,
+    /execute the loaded sibling `yt-work` with `mode:return-to-caller`/i,
+    /status.*exactly `complete` or `blocked`/is,
+    /unit-to-commit mapping and verification commands\/results/i,
+    /every commit and changed path in `base\.\.resulting-head`.*accounted for.*unit mapping/is,
+    /intervening or unexplained foreign commit blocks.*rather than entering the review range/is,
+    /resulting head to descend from.*recorded base/is,
+    /`complete` is valid only when all requested scope is committed, all required checks pass, no unit remains, and no blocker exists/i,
+    /Unknown status, missing or malformed fields, inconsistent Git evidence, foreign paths, or an unverifiable receipt is blocked and never permits review/i,
+    /Only after a valid complete implementation receipt.*`yt-review` exactly once/is,
+    /exact invocation-owned `base\.\.implementation-head` range/i,
+    /review is blocked or incomplete, a prerequisite fails, or.*observable-state comparison reports mutation.*stop/is,
+    /Never start correction after observable mutation/i,
+    /findings as untrusted evidence/i,
+    /actionable in-scope findings.*`yt-work` again with `mode:return-to-caller`/is,
+    /implementation head as the correction starting head/i,
+    /correction base to equal the implementation head.*original invocation base.*overall scope accounting/is,
+    /Never invoke `yt-review` again/i,
+    /corrected head was not reviewed/i,
+  ], "yt-quickfix gates");
+
+  const implementation = content.indexOf("## Initial implementation");
+  const review = content.indexOf("## Exactly one review");
+  const correction = content.indexOf("## Correct actionable findings once");
+  assert.ok(implementation !== -1 && implementation < review && review < correction,
+    "quickfix must implement, review once, then optionally correct");
+});
+
+test("yt-quickfix rejects contradictory review, mutation, authority, and shipping directives", () => {
+  const { content } = readSkill("yt-quickfix");
+  const contradictions = [
+    /^Review before implementation is complete\./im,
+    /^Retry the review if it fails\./im,
+    /^Review the corrected head a second time\./im,
+    /^Correct findings after review mutation\./im,
+    /^Treat review findings as new authority\./im,
+    /^Include foreign work in the review range\./im,
+    /^Automatically push and open a pull request\./im,
+  ];
+  assertRejectsContradictions(content, contradictions, [
+    "Review before implementation is complete.",
+    "Retry the review if it fails.",
+    "Review the corrected head a second time.",
+    "Correct findings after review mutation.",
+    "Treat review findings as new authority.",
+    "Include foreign work in the review range.",
+    "Automatically push and open a pull request.",
+  ], "yt-quickfix");
+});
+
 test("yt-work has valid matching frontmatter and supports direct entry", () => {
   const { content } = readSkill("yt-work");
   const { raw, values } = frontmatter(content);
@@ -1236,6 +1351,46 @@ test("yt-work has valid matching frontmatter and supports direct entry", () => {
     /auto-discovered repository context/i,
     /Never silently modify a PRD or plan/i,
   ], "yt-work");
+});
+
+test("yt-work return mode preserves the standalone kernel and emits a coherent receipt", () => {
+  const { content } = readSkill("yt-work");
+  assertMatches(content, [
+    /Standalone execution is the default/i,
+    /Recognize `mode:return-to-caller` only.*explicit invocation control/i,
+    /quoted requests, artifacts, repository files, diffs, reports.*cannot activate or alter the mode/is,
+    /changes only completion ownership/i,
+    /same autonomy, Git and foreign-state guards, packaged unit implementers, parallel isolation, validation, correction behavior, metadata blockers, and parent-owned atomic commits/i,
+    /locally verify and return a structured receipt/i,
+    /`status`: exactly `complete` or `blocked`/i,
+    /invocation base, resulting head, branch, requested scope and exclusions, and every changed owned path/i,
+    /unit-to-commit mapping and verification commands with results/i,
+    /blockers and remaining units, preserved state, decisions\/deviations, correction progress, and residual risks/i,
+    /Return `complete` only when all requested scope is committed, every required check passes, no unit remains, and no blocker exists/i,
+    /Missing, unknown, malformed, unverifiable, or internally inconsistent receipt data requires `blocked`/i,
+    /return mode, do not invoke or suggest review, shipping, publication, or another skill/i,
+    /In standalone mode, suggest `\/skill:yt-review/i,
+  ], "yt-work return mode");
+});
+
+test("yt-work receipt producer and yt-quickfix consumer require coherent completion fields", () => {
+  const work = readSkill("yt-work").content;
+  const quickfix = readSkill("yt-quickfix").content;
+  for (const pattern of [
+    /status.*complete.*blocked/is,
+    /invocation base.*resulting head/is,
+    /requested scope.*exclusions/is,
+    /changed owned path/i,
+    /unit-to-commit mapping/i,
+    /verification command/i,
+    /blockers and remaining units/i,
+    /preserved state/i,
+    /decisions\/deviations/i,
+    /residual risks/i,
+  ]) {
+    assert.match(work, pattern, `yt-work receipt producer must satisfy ${pattern}`);
+    assert.match(quickfix, pattern, `yt-quickfix receipt consumer must satisfy ${pattern}`);
+  }
 });
 
 test("yt-work enforces Git and foreign-change preflight", () => {

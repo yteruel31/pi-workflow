@@ -1,6 +1,7 @@
 ---
 name: yt-plan
 description: "Create an implementation-ready plan from a direct request, optional PRD, or existing plan without changing application code."
+argument-hint: "[request-or-prd-or-plan-path]"
 ---
 
 # YT Plan

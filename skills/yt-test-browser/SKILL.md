@@ -1,6 +1,7 @@
 ---
 name: yt-test-browser
 description: "Run browser smoke tests, UI flows, exploratory QA, or regression validation against a reachable web application and return evidence-rich findings."
+argument-hint: "<reachable-url> [scenario]"
 ---
 
 # YT Test Browser

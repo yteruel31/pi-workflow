@@ -1,6 +1,7 @@
 ---
 name: yt-dispatch
 description: "Dispatch independent work units into visible Herdr Pi tabs without monitoring or collecting their results."
+argument-hint: "[request-or-artifact-path]"
 ---
 
 # YT Dispatch

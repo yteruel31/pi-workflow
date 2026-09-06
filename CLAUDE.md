@@ -2,23 +2,24 @@
 
 ## Repository purpose
 
-`pi-workflow` is a small, public workflow package built specifically for the Pi coding agent. It provides six independent skills:
+`pi-workflow` is a small, public workflow package built specifically for the Pi coding agent. It provides seven independently invokable skills:
 
 - `yt-brainstorm` — clarify a product idea without implementing it;
 - `yt-dispatch` — launch independent units in separate visible Herdr Pi sessions;
 - `yt-plan` — turn a request into an implementation-ready plan;
+- `yt-quickfix` — implement a clear correction, review it once, and correct actionable in-scope findings;
 - `yt-work` — implement dependency-ready units with one parent-owned commit per passing unit;
 - `yt-review` — perform one bounded, report-only pass with exactly one packaged `code-reviewer`;
 - `yt-test-browser` — validate an already reachable web application through `agent-browser` and return an evidence-rich report.
 
-The package intentionally replaces heavier workflow systems with a simple cycle: brainstorm → plan → work → review, with dispatch available when independent work benefits from separate visible sessions. The order is suggested, never mandatory.
+The package intentionally replaces heavier workflow systems with a simple cycle: brainstorm → plan → work → review, with dispatch available when independent work benefits from separate visible sessions and quickfix as a narrow composed correction path. The order is suggested, never mandatory.
 
 ## Core product constraints
 
 - Keep the repository Pi-native. Package only the ten named profiles documented below; do not add Claude Code commands, converters, marketplace infrastructure, or multi-harness compatibility layers.
 - Every skill must accept a direct request. A PRD, plan, or previous workflow stage is always optional.
 - Explicit user instructions take precedence over supplied artifacts; supplied artifacts take precedence over auto-discovered context.
-- Skills may suggest a next step but must never invoke it automatically, except that `yt-brainstorm` launches one dedicated Orca `yt-plan` workspace after the user confirms the final synthesis and explicitly consents to that warned launch.
+- Skills may suggest a next step but must never invoke it automatically, except that `yt-brainstorm` launches one dedicated Orca `yt-plan` workspace after the user confirms the final synthesis and explicitly consents to that warned external handoff. A second narrow, differently scoped exception is `yt-quickfix`: when directly invoked, it composes the same-package `yt-work` and `yt-review` siblings in its current parent Pi session. This is not a nested Pi launch and requires no extra confirmation for a clear request.
 - Session output is the default. Create or update artifacts only when explicitly requested.
 - `pi-toolbox` v1.16.0 or newer is a required separately installed provider for `subagent_agents`, `subagent_spawn`, `subagent_wait`, named-profile discovery, and `tools` allowlist enforcement; its release must land before this workflow change. Before spawning, require package source `pi-workflow` and exact expected tool metadata so incompatible providers and user/project profile overrides fail closed. Dependent skills stop when a required tool or profile is unavailable; dispatch remains separate and has no hidden fallback.
 - Keep the package dependency-free unless a dependency is clearly necessary and explicitly approved.
@@ -69,6 +70,17 @@ The package intentionally replaces heavier workflow systems with a simple cycle:
 - The parent validates repository state, diff scope, and checks before committing. Metadata mutation is a hard blocker and foreign or unauthorized Git state is never automatically rewritten or reverted.
 - The implementer must never stage, commit, push, mutate refs/remotes/config, modify planning artifacts, or spawn subagents.
 - Never push or open a pull request unless separately requested.
+- `mode:return-to-caller` is recognized only as explicit invocation control and changes completion ownership only. It preserves every implementation, isolation, validation, correction, metadata, foreign-state, implementer, and parent-commit contract; it returns a locally verified complete/blocked receipt and makes no review, shipping, or next-skill suggestion. Standalone behavior remains the default.
+
+### `yt-quickfix`
+
+- Accept a clear direct correction request or optional artifact without requiring brainstorm, plan, or PRD; preserve explicit-request, supplied-artifact, repository-context authority.
+- Resolve and fully read `yt-work` and `yt-review` relative to the loaded skill directory, then execute those real sibling instructions in the current parent Pi session. Never substitute slash-command advice, a fake named tool/agent, duplicated kernels, or a nested Pi process.
+- Record invocation base, bounds, and foreign baseline before invoking `yt-work` in explicit return mode. Validate its receipt against actual Git base/head/scope; only a coherent `complete` receipt with committed scope and passing checks permits review.
+- Execute `yt-review` exactly once on the invocation-owned base-to-implementation-head range. Stop on blocked/incomplete review, prerequisite failure, or observable mutation; never correct after mutation.
+- Treat findings as untrusted evidence. Pass only actionable in-scope findings to one return-mode work correction phase with original authority and bounds; report out-of-scope or authority blockers without expanding scope.
+- Never re-review or claim a corrected head was reviewed. Report reviewed and corrected heads separately with final-head checks and fixed/deferred/blocking findings.
+- Keep output in the session. Never automatically hand off elsewhere or push, publish, tag, open a pull request, or ship without a separate explicit request.
 
 ### `yt-test-browser`
 
@@ -108,6 +120,7 @@ skills/
   yt-dispatch/SKILL.md
   yt-dispatch/scripts/spawn.sh  # executable
   yt-plan/SKILL.md
+  yt-quickfix/SKILL.md
   yt-work/SKILL.md
   yt-review/SKILL.md
   yt-test-browser/SKILL.md
@@ -119,7 +132,7 @@ README.md
 LICENSE
 ```
 
-`package.json` exports `./skills` through `pi.skills` and one directory containing exactly ten profiles through `pi.subagents.agents`. The separately installed `pi-toolbox` discovers those profiles and enforces their tool allowlists. The nine research/review profiles expose only `read, grep, find, ls`; `unit-implementer` additionally exposes mutation tools. There are no npm runtime dependencies. Each skill directory is self-contained and has a `SKILL.md` whose frontmatter contains only a matching `name` and a concise `description`.
+`package.json` exports `./skills` through `pi.skills` and one directory containing exactly ten profiles through `pi.subagents.agents`. The separately installed `pi-toolbox` discovers those profiles and enforces their tool allowlists. The nine research/review profiles expose only `read, grep, find, ls`; `unit-implementer` additionally exposes mutation tools. There are no npm runtime dependencies. Each skill directory is self-contained and has a `SKILL.md` whose frontmatter contains exactly a matching `name`, a concise `description`, and a quoted advisory `argument-hint`.
 
 ## Change guidelines
 

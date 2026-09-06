@@ -1,6 +1,7 @@
 ---
 name: yt-quickfix
 description: "Implement a clear correction, review it once, and correct actionable findings through Pi-native workflow composition."
+argument-hint: "[correction-request-or-artifact-path]"
 ---
 
 # YT Quickfix

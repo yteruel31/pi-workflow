@@ -1,6 +1,7 @@
 ---
 name: yt-review
 description: "Review a patch, branch, PR, or working tree with one packaged code reviewer in one report-only pass."
+argument-hint: "[patch-or-pr-or-ref-or-working-tree]"
 ---
 
 # YT Review

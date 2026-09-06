@@ -1,6 +1,7 @@
 ---
 name: yt-work
 description: "Implement a request or plan autonomously as dependency-ready units with parent-owned atomic commits."
+argument-hint: "[mode:return-to-caller] <request-or-plan-path>"
 ---
 
 # YT Work

@@ -132,7 +132,7 @@ README.md
 LICENSE
 ```
 
-`package.json` exports `./skills` through `pi.skills` and one directory containing exactly ten profiles through `pi.subagents.agents`. The separately installed `pi-toolbox` discovers those profiles and enforces their tool allowlists. The nine research/review profiles expose only `read, grep, find, ls`; `unit-implementer` additionally exposes mutation tools. There are no npm runtime dependencies. Each skill directory is self-contained and has a `SKILL.md` whose frontmatter contains only a matching `name` and a concise `description`.
+`package.json` exports `./skills` through `pi.skills` and one directory containing exactly ten profiles through `pi.subagents.agents`. The separately installed `pi-toolbox` discovers those profiles and enforces their tool allowlists. The nine research/review profiles expose only `read, grep, find, ls`; `unit-implementer` additionally exposes mutation tools. There are no npm runtime dependencies. Each skill directory is self-contained and has a `SKILL.md` whose frontmatter contains exactly a matching `name`, a concise `description`, and a quoted advisory `argument-hint`.
 
 ## Change guidelines
 

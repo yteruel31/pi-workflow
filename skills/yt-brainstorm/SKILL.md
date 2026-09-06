@@ -1,6 +1,7 @@
 ---
 name: yt-brainstorm
 description: "Clarify a product idea, pressure-test its scope, and optionally capture a concise PRD before technical planning."
+argument-hint: "[idea-or-request]"
 ---
 
 # YT Brainstorm

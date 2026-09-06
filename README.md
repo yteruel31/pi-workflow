@@ -42,6 +42,8 @@ Use a skill naturally (for example, “brainstorm this feature with yt-brainstor
 
 Every skill, including `yt-dispatch` and `yt-test-browser`, is independently usable from a direct request. PRDs and plans are optional context, not workflow gates. Brainstorm and plan keep their result in the current session by default and create or update an artifact only after explicit approval.
 
+Each skill includes an `argument-hint` following the [official Claude skill metadata definition](https://code.claude.com/docs/en/skills). It is advisory usage metadata only: Pi's installed skill documentation does not promise an autocomplete display for it, and it implements neither argument parsing nor mode activation. The workflow remains Pi-native.
+
 `yt-brainstorm` has one narrow confirmed handoff, the package's only external handoff: its final confirmation explicitly warns that approval validates prerequisites, creates a dedicated Orca workspace, and launches a normal interactive Pi session into the installed `yt-plan` skill with the complete synthesis. It launches only after explicit consent; a refusal is respected, and synthesis-only or PRD approval does not override one. Optional PRD persistence never delays an approved handoff. Separately, `yt-quickfix` is the narrow in-session composition exception: its requested purpose is to load and execute the same-package `yt-work` and `yt-review` siblings, rather than start another Pi session. All other suggestions remain optional: plan may suggest dispatch only for multiple immediately independent units, otherwise it suggests `yt-work`, and no other skill starts the next command automatically.
 
 ## Bounded delegation

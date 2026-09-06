@@ -19,6 +19,15 @@ import test from "node:test";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dispatchScript = join(root, "skills", "yt-dispatch", "scripts", "spawn.sh");
 const requiredSkillNames = ["yt-brainstorm", "yt-dispatch", "yt-plan", "yt-quickfix", "yt-review", "yt-test-browser", "yt-work"];
+const expectedArgumentHints = {
+  "yt-brainstorm": "[idea-or-request]",
+  "yt-dispatch": "[request-or-artifact-path]",
+  "yt-plan": "[request-or-prd-or-plan-path]",
+  "yt-quickfix": "[correction-request-or-artifact-path]",
+  "yt-review": "[patch-or-pr-or-ref-or-working-tree]",
+  "yt-test-browser": "<reachable-url> [scenario]",
+  "yt-work": "[mode:return-to-caller] <request-or-plan-path>",
+};
 const productSkillNames = ["yt-brainstorm", "yt-plan"];
 const requiredAgentNames = [
   "code-reviewer",
@@ -363,6 +372,11 @@ test("README documents installation, all commands, fallback, commits, and report
     /remote-only mutation.*configured role overrides.*trust boundaries/is,
     /marks remote state unverified/i,
     /never applies an autofix/i,
+    /official Claude skill metadata definition\]\(https:\/\/code\.claude\.com\/docs\/en\/skills\)/i,
+    /`argument-hint`.*advisory usage metadata only/is,
+    /Pi's installed skill documentation does not promise an autocomplete display/i,
+    /neither argument parsing nor mode activation/i,
+    /workflow remains Pi-native/i,
     /no npm runtime dependencies/i,
   ], "README");
 });
@@ -476,6 +490,7 @@ test("CLAUDE documents the seven-skill contracts and layout", () => {
     /user-prepared, explicitly identified session\/profile/i,
     /mode-700 temporary directory outside the repository/i,
     /yt-test-browser\/SKILL\.md/,
+    /frontmatter contains exactly.*`name`.*`description`.*quoted advisory `argument-hint`/is,
   ], "CLAUDE skill guidance");
   assert.doesNotMatch(guidance, /exactly (?:four|five)/i);
 });
@@ -484,10 +499,11 @@ test("yt-test-browser defines the standalone external-CLI browser testing contra
   const { content } = readSkill("yt-test-browser");
   const { raw, values } = frontmatter(content);
 
-  assert.deepEqual([...values.keys()], ["name", "description"]);
+  assert.deepEqual([...values.keys()], ["name", "description", "argument-hint"]);
   assert.equal(values.get("name"), "yt-test-browser");
   assert.match(raw, /^description: "[^"]*(?:browser smoke tests|UI flows)[^"]*(?:exploratory QA|regression validation)[^"]*"$/m);
-  assert.equal(raw.split("\n").length, 2);
+  assert.equal(values.get("argument-hint"), '"<reachable-url> [scenario]"');
+  assert.equal(raw.split("\n").length, 3);
   assertMatches(content, [
     /reachable URL is mandatory.*ask for it/is,
     /Never start, build, or serve the application/i,
@@ -623,14 +639,17 @@ test("the Orca planning handoff does not alter other skill contracts", () => {
   assertMatches(readSkill("yt-test-browser").content, [/Never invoke or automatically suggest another workflow skill/i], "yt-test-browser unchanged chaining");
 });
 
-test("all discovered skills have valid, matching frontmatter", () => {
+test("all discovered skills have exact argument-hint frontmatter", () => {
   for (const name of requiredSkillNames) {
     const { content } = readSkill(name);
     const { raw, values } = frontmatter(content);
 
+    assert.deepEqual([...values.keys()], ["name", "description", "argument-hint"]);
     assert.equal(values.get("name"), name);
     assert.match(raw, /^description:\s*"[^"\n]+"$/m);
-    assert.equal(values.has("argument-hint"), false);
+    assert.match(raw, /^argument-hint: "[^"\n]+"$/m);
+    assert.equal(values.get("argument-hint"), `"${expectedArgumentHints[name]}"`);
+    assert.equal(raw.split("\n").length, 3);
   }
 });
 
@@ -801,14 +820,15 @@ test("yt-plan conditionally suggests dispatch with yt-work as its optional fallb
   assert.doesNotMatch(content, /^End by suggesting `\/skill:yt-work <request-or-plan-path>`\./m);
 });
 
-test("yt-dispatch has minimal frontmatter and accepts direct or optional artifact input", () => {
+test("yt-dispatch has three-field frontmatter and accepts direct or optional artifact input", () => {
   const { content } = readSkill("yt-dispatch");
   const { raw, values } = frontmatter(content);
 
-  assert.deepEqual([...values.keys()], ["name", "description"]);
+  assert.deepEqual([...values.keys()], ["name", "description", "argument-hint"]);
   assert.equal(values.get("name"), "yt-dispatch");
   assert.match(raw, /^description:\s*"[^"\n]+"$/m);
-  assert.equal(raw.split("\n").length, 2);
+  assert.equal(values.get("argument-hint"), '"[request-or-artifact-path]"');
+  assert.equal(raw.split("\n").length, 3);
   assertMatches(content, [
     /A direct brainstorm or request is sufficient\./,
     /may instead supply a PRD, plan, review, or other artifact/i,
@@ -1248,14 +1268,15 @@ test("README and CLAUDE document seven skills and the narrow quickfix compositio
   ], "CLAUDE quickfix guidance");
 });
 
-test("yt-quickfix has minimal frontmatter, direct entry, and explicit authority", () => {
+test("yt-quickfix has three-field frontmatter, direct entry, and explicit authority", () => {
   const { content } = readSkill("yt-quickfix");
   const { raw, values } = frontmatter(content);
 
-  assert.deepEqual([...values.keys()], ["name", "description"]);
+  assert.deepEqual([...values.keys()], ["name", "description", "argument-hint"]);
   assert.equal(values.get("name"), "yt-quickfix");
   assert.match(raw, /^description: "[^"\n]+"$/m);
-  assert.equal(raw.split("\n").length, 2);
+  assert.equal(values.get("argument-hint"), '"[correction-request-or-artifact-path]"');
+  assert.equal(raw.split("\n").length, 3);
   assertMatches(content, [
     /direct request or an optional user-supplied artifact is sufficient/i,
     /do not require or create a brainstorm, plan, or PRD/i,
@@ -1341,9 +1362,10 @@ test("yt-work has valid matching frontmatter and supports direct entry", () => {
   const { content } = readSkill("yt-work");
   const { raw, values } = frontmatter(content);
 
+  assert.deepEqual([...values.keys()], ["name", "description", "argument-hint"]);
   assert.equal(values.get("name"), "yt-work");
   assert.match(raw, /^description:\s*"[^"\n]+"$/m);
-  assert.equal(values.has("argument-hint"), false);
+  assert.equal(values.get("argument-hint"), '"[mode:return-to-caller] <request-or-plan-path>"');
   assertMatches(content, [
     /A direct implementation request is sufficient/i,
     /missing PRD, plan, or previous workflow stage never blocks/i,
@@ -1550,9 +1572,10 @@ test("yt-review has valid matching frontmatter and accepts direct targets", () =
   const { content } = readSkill("yt-review");
   const { raw, values } = frontmatter(content);
 
+  assert.deepEqual([...values.keys()], ["name", "description", "argument-hint"]);
   assert.equal(values.get("name"), "yt-review");
   assert.match(raw, /^description:\s*"[^"\n]+"$/m);
-  assert.equal(values.has("argument-hint"), false);
+  assert.equal(values.get("argument-hint"), '"[patch-or-pr-or-ref-or-working-tree]"');
   assertMatches(content, [
     /A direct review target is sufficient/i,
     /explicit patch or diff, PR URL or number, branch or ref, a plan or PRD plus a target, or the current working tree/i,
